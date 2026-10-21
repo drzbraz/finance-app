@@ -1,0 +1,6 @@
+node_modules
+dist
+*.xlsx
+!tests/**/*.xlsx
+scripts/local-*
+*.tsbuildinfo
