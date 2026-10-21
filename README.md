@@ -44,7 +44,10 @@ entry with **+ Novo lançamento**, the round **+** on phones, or the **N** key.
 
 ### Pages
 
-- **Início**: month KPIs (saldo, with a forecast for the current month; spent so far vs projected;
+- **Início**: month KPIs (**Livre para gastar** for the current month = income − fixed bills −
+  investments − groceries (the Mercado limit, or your average, reserved up front) − other variable
+  spending already made, with a per-day amount and a "ver a conta" breakdown; saldo for past months;
+  spent so far vs projected;
   savings rate; main goal), insight cards ("Saúde está 598% acima da sua média", "No ritmo atual o
   mês fecha em −€X"…), budgets near their limit, upcoming bills, and the charts.
 - **Transações**: entries grouped by day, with search, filter chips (type, pending/paid, #tags),

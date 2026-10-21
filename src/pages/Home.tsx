@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { cumulative, saldo, totalsByType } from '../analytics/aggregate';
 import { mergeRecurring, upcomingBills } from '../analytics/bills';
 import { budgetStatus } from '../analytics/budgets';
+import { freeToSpend } from '../analytics/free';
 import { goalStatus } from '../analytics/goals';
 import { forecastMonth, insights, type InsightTone } from '../analytics/insights';
 import { byCategory, savingsRate, savingsRateYTD, topExpenses } from '../analytics/metrics';
@@ -65,10 +66,12 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
   const goals = useGoals();
   const stored = useStoredRecurring();
   const [catScope, setCatScope] = useState<'month' | 'year'>('month');
+  const [showFree, setShowFree] = useState(false);
 
   const t = useMemo(() => totalsByType(txs), [txs]);
   const recurring = useMemo(() => mergeRecurring(txs, stored, month), [txs, stored, month]);
   const forecast = forecastMonth(txs, recurring, year, month, today);
+  const free = freeToSpend(txs, recurring, budgets, year, month, today);
   const cards = insights({ txs, budgets, recurring, settings, year, month, today }).slice(0, 4);
   const rates = savingsRate(t);
   const ytd = savingsRateYTD(t, month);
@@ -121,12 +124,26 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi
-          label={forecast.isForecast ? 'Saldo previsto' : 'Saldo do mês'}
-          value={eur.format(forecast.isForecast ? forecast.projectedSaldo : bal[month - 1])}
-          sub={forecast.isForecast ? `Hoje: ${eur.format(bal[month - 1])}` : `Acumulado no ano: ${eur.format(cum[month - 1])}`}
-          tone={(forecast.isForecast ? forecast.projectedSaldo : bal[month - 1]) < 0 ? 'bad' : 'good'}
-        />
+        {free.isCurrent ? (
+          <button className="text-left" onClick={() => setShowFree(!showFree)} aria-expanded={showFree} title="Ver a conta">
+            <Kpi
+              label="Livre para gastar"
+              value={eur.format(free.free)}
+              sub={
+                (free.perDay !== null ? `≈ ${eur.format(free.perDay)}/dia por ${free.daysLeft} dia(s)` : 'Você já passou do que tinha livre') +
+                ' · ver a conta'
+              }
+              tone={free.free < 0 ? 'bad' : 'good'}
+            />
+          </button>
+        ) : (
+          <Kpi
+            label="Saldo do mês"
+            value={eur.format(bal[month - 1])}
+            sub={`Acumulado no ano: ${eur.format(cum[month - 1])}`}
+            tone={bal[month - 1] < 0 ? 'bad' : 'good'}
+          />
+        )}
         <Kpi
           label="Gasto até agora"
           value={eur.format(forecast.spentSoFar)}
@@ -150,6 +167,32 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
           />
         </button>
       </div>
+
+      {free.isCurrent && showFree && (
+        <section className="card text-sm">
+          <h2 className="mb-2 font-semibold">Como chegamos em {eur.format(free.free)}</h2>
+          <ul className="num space-y-1">
+            <li className="flex justify-between"><span>Receita do mês</span><span className="text-good">+{eur.format(free.income)}</span></li>
+            <li className="flex justify-between"><span>Contas fixas</span><span>−{eur.format(free.fixed)}</span></li>
+            <li className="flex justify-between"><span>Investimentos</span><span>−{eur.format(free.investment)}</span></li>
+            <li className="flex justify-between">
+              <span>
+                Mercado {free.groceriesSpent >= free.groceryReserve ? '(já gasto)' : free.groceryReserveSource === 'budget' ? '(reservado: seu limite)' : free.groceryReserveSource === 'average' ? '(reservado: sua média)' : ''}
+                {free.groceriesSpent > 0 && free.groceriesSpent < free.groceryReserve && <span className="text-ink-3"> · gasto até agora {eur.format(free.groceriesSpent)}</span>}
+              </span>
+              <span>−{eur.format(free.groceries)}</span>
+            </li>
+            <li className="flex justify-between"><span>Outros gastos variáveis já feitos</span><span>−{eur.format(free.otherSpent)}</span></li>
+            <li className="flex justify-between border-t border-line pt-1 font-semibold">
+              <span>Livre para gastar</span><span className={free.free < 0 ? 'text-bad' : 'text-good'}>{eur.format(free.free)}</span>
+            </li>
+          </ul>
+          <p className="mt-2 text-xs text-ink-3">
+            Inclui as contas, receitas e investimentos recorrentes que ainda não foram lançados neste mês, pelo valor esperado (veja em Contas).
+            {free.groceryReserveSource !== 'budget' && ' Para reservar um valor fixo de mercado, defina um limite para Mercado em Contas → Limites de gasto.'}
+          </p>
+        </section>
+      )}
 
       {cards.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2">
