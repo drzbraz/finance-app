@@ -80,3 +80,36 @@ describe('updateRecurring / removeRecurring', () => {
     expect(await db.transactions.get('a')).toBeTruthy();
   });
 });
+
+import { startedMonthTxs, startMonthTxs } from '../src/analytics/bills';
+
+describe('Iniciar mês / desfazer', () => {
+  const recurring = [
+    item(),
+    item({ key: 'fixed|Aluguel', description: 'Aluguel', expectedAmount: 380 }),
+  ];
+
+  it('marks what it creates and undo finds exactly those, while pending', () => {
+    const created = startMonthTxs([], recurring, 2026, 11);
+    expect(created).toHaveLength(2);
+    expect(created.every((t) => t.origin === 'start-month' && !t.paid)).toBe(true);
+    expect(startedMonthTxs(created, recurring, 2026, 11).map((t) => t.description).sort()).toEqual(['Aluguel', 'VODA']);
+  });
+
+  it('keeps paid ones, other months, sheet rows and manual entries', () => {
+    const [voda, aluguel] = startMonthTxs([], recurring, 2026, 11);
+    const txs = [
+      { ...voda, paid: true },
+      aluguel,
+      tx({ id: 'sheet', type: 'fixed', description: 'VODA', amount: 15, month: 11, paid: false, source: { sheet: 's', cell: 'L57' } }),
+      tx({ id: 'manual', type: 'fixed', description: 'VODA', amount: 99, month: 11, paid: false }),
+      { ...aluguel, id: 'oct', month: 10 },
+    ];
+    expect(startedMonthTxs(txs, recurring, 2026, 11).map((t) => t.id)).toEqual([aluguel.id]);
+  });
+
+  it('recognises legacy entries created before the origin flag', () => {
+    const legacy = tx({ id: 'old', type: 'fixed', description: 'Aluguel', amount: 380, month: 11, paid: false });
+    expect(startedMonthTxs([legacy], recurring, 2026, 11).map((t) => t.id)).toEqual(['old']);
+  });
+});

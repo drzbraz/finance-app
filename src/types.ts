@@ -35,6 +35,8 @@ export interface Transaction {
   deleted?: boolean;
   /** ISO timestamp of the last change made in the app (drives the "not exported" badge). */
   updatedAt?: string;
+  /** Created by "Iniciar mês" (so it can be undone later). */
+  origin?: 'start-month';
 }
 
 export interface CategoryRule {

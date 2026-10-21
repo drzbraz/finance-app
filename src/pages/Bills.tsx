@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { billsForMonth, isoDate, mergeRecurring, startMonthTxs, type Bill, type BillBucket } from '../analytics/bills';
+import { billsForMonth, isoDate, mergeRecurring, startedMonthTxs, startMonthTxs, type Bill, type BillBucket } from '../analytics/bills';
 import { categoryIcon } from '../categories';
 import { useToast } from '../components/layout/Toast';
 import BillSheet from '../components/BillSheet';
@@ -28,10 +28,12 @@ export default function Bills({ year, month }: { year: number; month: number }) 
   const toast = useToast();
   // undefined = closed, null = new bill
   const [sheet, setSheet] = useState<Bill | null | undefined>(undefined);
+  const [confirmUndo, setConfirmUndo] = useState(false);
 
   const recurring = useMemo(() => mergeRecurring(txs, stored, month), [txs, stored, month]);
   const bills = billsForMonth(txs, recurring, year, month, today);
   const toCreate = startMonthTxs(txs, recurring, year, month);
+  const started = startedMonthTxs(txs, recurring, year, month);
   const done = bills.filter((b) => b.done).length;
   const toPay = bills.filter((b) => !b.done && b.item.type !== 'income').reduce((a, b) => a + b.amount, 0);
   const toReceive = bills.filter((b) => !b.done && b.item.type === 'income').reduce((a, b) => a + b.amount, 0);
@@ -72,6 +74,15 @@ export default function Bills({ year, month }: { year: number; month: number }) 
     toast(`${created.length} conta(s) de ${MONTH_NAMES[month - 1]} criada(s) como pendentes`, () => db.transactions.bulkDelete(created.map((t) => t.id)));
   };
 
+  const undoStart = async () => {
+    const removed = started;
+    await db.transactions.bulkDelete(removed.map((t) => t.id));
+    setConfirmUndo(false);
+    toast(`Início de ${MONTH_NAMES[month - 1].toLowerCase()} desfeito: ${removed.length} lançamento(s) pendente(s) removido(s)`, () =>
+      Promise.all(removed.map((t) => restoreTransaction(t))),
+    );
+  };
+
   const inactive = recurring.filter((r) => !r.active);
   const keys = recurring.map((r) => r.key);
   const openNew = () => setSheet(null);
@@ -87,6 +98,11 @@ export default function Bills({ year, month }: { year: number; month: number }) 
         }
         actions={
           <>
+            {started.length > 0 && (
+              <button className="btn" onClick={() => setConfirmUndo(true)} title="Remove os lançamentos pendentes criados pelo “Iniciar mês”">
+                ↺ Desfazer início de {MONTH_NAMES[month - 1].toLowerCase()}
+              </button>
+            )}
             {toCreate.length > 0 && (
               <button className="btn" onClick={startMonth} title="Cria as contas que ainda não estão no mês, como pendentes">
                 Iniciar {MONTH_NAMES[month - 1].toLowerCase()} ({toCreate.length})
@@ -96,6 +112,28 @@ export default function Bills({ year, month }: { year: number; month: number }) 
           </>
         }
       />
+
+      {confirmUndo && started.length > 0 && (
+        <div className="mb-5 space-y-3 rounded-2xl border border-warn/40 bg-warn/5 p-4 text-sm">
+          <p className="font-semibold">Desfazer o início de {MONTH_NAMES[month - 1].toLowerCase()}?</p>
+          <p className="text-ink-2">
+            Estes {started.length} lançamento(s) pendente(s) criados pelo “Iniciar mês” serão removidos. Os que você já marcou como
+            pagos ficam.
+          </p>
+          <ul className="num max-h-48 overflow-y-auto rounded-xl bg-surface p-2 text-xs">
+            {started.map((t) => (
+              <li key={t.id} className="flex justify-between gap-2 px-1 py-0.5">
+                <span>{t.description}</span>
+                <span>{eur.format(t.amount)}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex justify-end gap-2">
+            <button className="btn" onClick={() => setConfirmUndo(false)}>Cancelar</button>
+            <button className="btn-primary" onClick={undoStart}>Desfazer início</button>
+          </div>
+        </div>
+      )}
 
       {bills.length > 0 && <div className="mb-5"><ProgressBar value={done / bills.length} label="Contas feitas" /></div>}
 

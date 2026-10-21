@@ -139,5 +139,21 @@ export function startMonthTxs(txs: Transaction[], recurring: RecurringItem[], ye
       categorySource: 'auto' as const,
       tags: [],
       paid: false,
+      origin: 'start-month' as const,
     }));
+}
+
+/**
+ * What "Desfazer início do mês" removes: entries created by "Iniciar mês" that are still
+ * pending. Paid ones stay (you already acted on them). Entries from before the `origin` flag
+ * existed are recognised as app-created (no sheet cell), pending, and matching a recurring line
+ * with its expected amount, i.e. exactly what "Iniciar mês" would have created.
+ */
+export function startedMonthTxs(txs: Transaction[], recurring: RecurringItem[], year: number, month: number): Transaction[] {
+  return txs.filter((t) => {
+    if (t.year !== year || t.month !== month || t.paid || t.deleted) return false;
+    if (t.origin === 'start-month') return true;
+    if (t.origin || t.source) return false;
+    return recurring.some((r) => r.type === t.type && r.description === t.description && r.expectedAmount === t.amount);
+  });
 }
