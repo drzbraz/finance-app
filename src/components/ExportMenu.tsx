@@ -3,7 +3,7 @@ import { exportYearXlsx } from '../db/actions';
 import { exportBackup } from '../db/repo';
 import { downloadBlob, XLSX_MIME } from '../download';
 import { useUnexported } from '../hooks';
-import { useToast } from './layout/Toast';
+import { useClearToasts, useToast } from './layout/Toast';
 
 /** "Exportar" button: xlsx in the original layout, or a JSON backup. Shows unexported changes. */
 export default function ExportMenu({ year, compact = false }: { year: number; compact?: boolean }) {
@@ -11,6 +11,7 @@ export default function ExportMenu({ year, compact = false }: { year: number; co
   const [busy, setBusy] = useState(false);
   const pending = useUnexported(year);
   const toast = useToast();
+  const clearToasts = useClearToasts();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,6 +26,8 @@ export default function ExportMenu({ year, compact = false }: { year: number; co
     setBusy(true);
     try {
       const out = await exportYearXlsx(year);
+      // The export re-points entries to new ids/cells, so earlier undos would restore stale rows.
+      clearToasts();
       downloadBlob(out.data, out.fileName, XLSX_MIME);
       toast(out.warnings.length ? `Planilha exportada com ${out.warnings.length} aviso(s): ${out.warnings[0]}` : 'Planilha exportada');
     } catch (e) {

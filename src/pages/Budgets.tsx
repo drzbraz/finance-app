@@ -25,13 +25,10 @@ export default function Budgets({ year, month }: { year: number; month: number }
   const totalSpent = status.reduce((a, b) => a + b.spent, 0);
 
   const suggest = async () => {
-    const before = await db.budgets.toArray();
     const suggestions = suggestBudgets(txs, month).filter((s) => !budgets.some((b) => b.category === s.category));
     await db.budgets.bulkPut(suggestions);
-    toast(`${suggestions.length} orçamento(s) sugerido(s) pela sua média`, async () => {
-      await db.budgets.clear();
-      await db.budgets.bulkPut(before);
-    });
+    // Undo removes only what was added, so budgets edited meanwhile survive.
+    toast(`${suggestions.length} orçamento(s) sugerido(s) pela sua média`, () => db.budgets.bulkDelete(suggestions.map((s) => s.category)));
   };
 
   const setLimit = (category: string, value: string) => {

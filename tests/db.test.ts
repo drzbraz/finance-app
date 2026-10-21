@@ -1,5 +1,6 @@
 import {
   addRuleAndApply,
+  deleteYear,
   appOnlyCount,
   deleteTransaction,
   ensureSeeded,
@@ -234,5 +235,80 @@ describe('v2 additions', () => {
     } finally {
       await upgraded.delete();
     }
+  });
+});
+
+describe('replaceYear across years', () => {
+  const goalTarget = async () => (await db.goals.get(PATRIMONY_GOAL_ID))?.target;
+  const year = (y: number, rate: number, goalBRL: number) =>
+    replaceYear(y, [tx({ id: `imp-${y}-B4`, year: y, source: { sheet: 's', cell: 'B4' } })], wbFile(), { eurBrlRate: rate, goalBRL }, db);
+
+  it('applies a single year as before', async () => {
+    await year(2026, 6.2, 100000);
+    expect((await getSettings(db)).eurBrlRate).toBe(6.2);
+    expect(await goalTarget()).toBe(100000);
+  });
+
+  it('keeps the newer year when an older one is imported later', async () => {
+    await year(2026, 6.2, 100000);
+    await year(2025, 5.5, 80000);
+    expect(await getSettings(db)).toMatchObject({ eurBrlRate: 6.2, goalBRL: 100000 });
+    expect(await goalTarget()).toBe(100000);
+    // The older year's data is still imported.
+    expect(await db.transactions.get('imp-2025-B4')).toBeDefined();
+    expect((await db.workbooks.get(2025))).toBeDefined();
+  });
+
+  it('lets the newer year win when imported after an older one', async () => {
+    await year(2025, 5.5, 80000);
+    await year(2026, 6.2, 100000);
+    expect(await getSettings(db)).toMatchObject({ eurBrlRate: 6.2, goalBRL: 100000 });
+    expect(await goalTarget()).toBe(100000);
+  });
+
+  it('re-importing the latest year still updates settings', async () => {
+    await year(2025, 5.5, 80000);
+    await year(2026, 6.2, 100000);
+    await year(2026, 6.4, 120000);
+    expect((await getSettings(db)).eurBrlRate).toBe(6.4);
+    expect(await goalTarget()).toBe(120000);
+  });
+
+  it('keeps a goal the user edited, only syncing its target', async () => {
+    await year(2026, 6.2, 100000);
+    await saveGoal({ ...(await db.goals.get(PATRIMONY_GOAL_ID))!, name: 'Casa própria', targetDate: '2030-01-01' }, db);
+    await year(2026, 6.2, 150000);
+    expect(await db.goals.get(PATRIMONY_GOAL_ID)).toMatchObject({ name: 'Casa própria', targetDate: '2030-01-01', target: 150000 });
+  });
+
+  it('does not create or change the goal when the sheet has no META', async () => {
+    await year(2026, 6.2, 0);
+    expect(await goalTarget()).toBeUndefined();
+  });
+});
+
+describe('deleteYear', () => {
+  it('removes that year’s transactions, app-only and soft-deleted included, and its workbook', async () => {
+    await replaceYear(2026, [tx({ id: 'imp-2026-B4', year: 2026, source: { sheet: 's', cell: 'B4' } })], wbFile(), {}, db);
+    await replaceYear(2025, [tx({ id: 'imp-2025-B4', year: 2025, source: { sheet: 's', cell: 'B4' } })], wbFile(), {}, db);
+    await saveTransaction(tx({ id: 'app', year: 2026 }), db);
+    await saveTransaction(tx({ id: 'gone', year: 2026, deleted: true, source: { sheet: 's', cell: 'C4' } }), db);
+    const rules = await db.rules.count();
+
+    await deleteYear(2026, db);
+    expect(await db.transactions.where('year').equals(2026).count()).toBe(0);
+    expect(await db.workbooks.get(2026)).toBeUndefined();
+    expect(await hasYear(2026, db)).toBe(false);
+    // Other years, rules and settings are untouched.
+    expect(await db.transactions.get('imp-2025-B4')).toBeDefined();
+    expect(await db.workbooks.get(2025)).toBeDefined();
+    expect(await db.rules.count()).toBe(rules);
+  });
+
+  it('lets an older year update settings again once the newer one is deleted', async () => {
+    await replaceYear(2026, [], wbFile(), { eurBrlRate: 6.2 }, db);
+    await deleteYear(2026, db);
+    await replaceYear(2025, [], wbFile(), { eurBrlRate: 5.5 }, db);
+    expect((await getSettings(db)).eurBrlRate).toBe(5.5);
   });
 });

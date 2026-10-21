@@ -10,8 +10,11 @@ interface ToastItem {
 const TOAST_MS = 8000;
 
 const ToastContext = createContext<(text: string, undo?: () => void) => void>(() => {});
+const ClearContext = createContext<() => void>(() => {});
 
 export const useToast = () => useContext(ToastContext);
+/** Drops every pending toast and its undo (used after an export rewrites ids and cells). */
+export const useClearToasts = () => useContext(ClearContext);
 
 /** Bottom toasts; an optional "Desfazer" runs the given undo. */
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -23,8 +26,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setItems((xs) => [...xs.slice(-2), { id, text, undo }]);
     setTimeout(() => dismiss(id), TOAST_MS);
   }, []);
+  const clear = useCallback(() => setItems([]), []);
   return (
     <ToastContext.Provider value={show}>
+      <ClearContext.Provider value={clear}>
       {children}
       <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 flex flex-col items-center gap-2 px-4 lg:bottom-6" aria-live="polite">
         {items.map((t) => (
@@ -44,6 +49,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           </div>
         ))}
       </div>
+      </ClearContext.Provider>
     </ToastContext.Provider>
   );
 }

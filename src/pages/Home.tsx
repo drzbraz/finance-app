@@ -55,12 +55,15 @@ function Section({ title, action, children, className = '' }: { title: string; a
 
 export default function Home({ year, month, colors, onPage, onAdd, onImport }: Props) {
   const txs = useYearTransactions(year);
-  const nextYear = useYearTransactions(year + 1);
+  const today = useToday();
+  // "Próximas contas" is about today, whatever year is selected.
+  const todayYear = today.getFullYear();
+  const todayTxs = useYearTransactions(todayYear);
+  const todayNextYear = useYearTransactions(todayYear + 1);
   const settings = useSettings();
   const budgets = useBudgets();
   const goals = useGoals();
   const stored = useStoredRecurring();
-  const today = useToday();
   const [catScope, setCatScope] = useState<'month' | 'year'>('month');
 
   const t = useMemo(() => totalsByType(txs), [txs]);
@@ -75,7 +78,8 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
   const lastMonth = Math.max(0, ...txs.filter((x) => x.amount !== 0).map((x) => x.month));
   const budgetRows = budgetStatus(txs, budgets, month).slice(0, 4);
   // Only the upcoming card looks across the year boundary (late December → January).
-  const upcoming = upcomingBills([...txs, ...nextYear], recurring, today).slice(0, 5);
+  const todayRecurring = useMemo(() => mergeRecurring(todayTxs, stored, today.getMonth() + 1), [todayTxs, stored, today]);
+  const upcoming = upcomingBills([...todayTxs, ...todayNextYear], todayRecurring, today).slice(0, 5);
   const mainGoal = goals[0] ? goalStatus(goals[0], settings, t, today) : null;
   const cats = byCategory(txs, catScope === 'month' ? month : undefined).slice(0, 8);
   const top = topExpenses(txs, month);
