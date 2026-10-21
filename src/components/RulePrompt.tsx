@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { addRuleAndApply } from '../db/repo';
 import { makeRule, suggestKeyword } from '../rules/engine';
+import { useToast } from './layout/Toast';
 
 interface Props {
   description: string;
@@ -8,36 +9,26 @@ interface Props {
   onClose: () => void;
 }
 
-/** Shown after a manual category change: offers to turn it into a rule and apply it retroactively. */
+/** After a manual category change: offer a keyword rule, applied to matching entries right away. */
 export default function RulePrompt({ description, category, onClose }: Props) {
   const [keyword, setKeyword] = useState(suggestKeyword(description));
-  const [result, setResult] = useState<number | null>(null);
+  const toast = useToast();
 
   const create = async () => {
     const changed = await addRuleAndApply(makeRule(keyword, category));
-    setResult(changed);
-    setTimeout(onClose, 1500);
+    toast(`Regra criada: “${keyword}” → ${category}. ${changed} lançamento(s) recategorizado(s).`);
+    onClose();
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-20 w-80 rounded-xl border border-emerald-300 bg-white p-4 shadow-lg">
-      {result === null ? (
-        <>
-          <p className="text-sm">
-            Criar regra: descrições com a palavra ao lado → <b>{category}</b>?
-          </p>
-          <input className="input mt-2 w-full" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-          <p className="mt-1 text-xs text-slate-500">Termine com * para casar o começo da palavra (ex.: jant*).</p>
-          <div className="mt-3 flex justify-end gap-2">
-            <button className="btn" onClick={onClose}>Não</button>
-            <button className="btn-primary" disabled={!keyword.trim()} onClick={create}>
-              Criar regra para “{keyword}”
-            </button>
-          </div>
-        </>
-      ) : (
-        <p className="text-sm">Regra criada. {result} lançamento(s) recategorizado(s).</p>
-      )}
+    <div className="fixed bottom-24 left-4 right-4 z-50 rounded-2xl border border-accent/40 bg-surface p-4 shadow-2xl sm:left-auto sm:w-96 lg:bottom-6">
+      <p className="text-sm font-semibold">Sempre usar {category} para descrições com esta palavra?</p>
+      <input className="input mt-2" value={keyword} onChange={(e) => setKeyword(e.target.value)} aria-label="Palavra-chave" />
+      <p className="mt-1 text-xs text-ink-3">Termine com * para casar o começo da palavra (ex.: jant*).</p>
+      <div className="mt-3 flex justify-end gap-2">
+        <button className="btn" onClick={onClose}>Agora não</button>
+        <button className="btn-primary" disabled={!keyword.trim()} onClick={create}>Criar regra</button>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { cellText, fillArgb, isFormula, parseAddress } from '../parser/cells';
+import { cellText, colLetter, fillArgb, isFormula, parseAddress } from '../parser/cells';
 import { isLightYellow, isPaidGreen, PAID_GREEN } from '../parser/color';
 import { formatComment, noteToString, readCommentsFromZip } from '../parser/comments';
 import { SHEET_NAME } from '../parser/parseWorkbook';
@@ -14,6 +14,19 @@ const PAID_BY_FILL: TxType[] = ['income', 'investment', 'fixed'];
 export interface ExportResult {
   data: ArrayBuffer;
   warnings: string[];
+  /**
+   * Final cell (in the exported file) of every transaction written to the main sheet.
+   * After saving, the exported file becomes the new baseline and each transaction is
+   * re-pointed to its cell here (see rebaseAfterExport), so re-importing never duplicates.
+   */
+  placements: Record<string, string>;
+}
+
+const NO_LABEL = '(sem nome)';
+
+/** Column A label as the parser reads it: an empty label is described as "(sem nome)". */
+function rowLabel(ws: ExcelJS.Worksheet, row: number): string {
+  return cellText(ws.getCell(row, 1)).trim() || NO_LABEL;
 }
 
 /**
@@ -35,7 +48,9 @@ export async function writeWorkbook(original: ArrayBuffer, txsIn: Transaction[])
   unshareFormulas(ws);
 
   const sections = detectSections(ws, header.row).sections;
+  // Zero-amount entries (e.g. a fresh "+ Novo") are listed in Lançamentos only: the parser skips zeros.
   const txs = txsIn.filter((t) => !t.deleted);
+  const positions = new Map<string, { row: number; col: number }>();
 
   // 1. Deleted imported rows: clear their cell.
   for (const t of txsIn.filter((t) => t.deleted && t.source?.sheet === ws.name)) clearCell(ws.getCell(t.source!.cell));
@@ -56,18 +71,20 @@ export async function writeWorkbook(original: ArrayBuffer, txsIn: Transaction[])
       warnings.push(`${t.source.cell} é uma fórmula; "${t.description}" não foi escrito.`);
       continue;
     }
-    const relabeled = t.type !== 'variable' && cellText(ws.getCell(row, 1)).trim() !== t.description;
-    if (header.columns.get(col) !== t.month || section?.type !== t.type || relabeled || occupied.has(t.source.cell)) {
+    const relabeled = t.type !== 'variable' && rowLabel(ws, row) !== t.description;
+    if (t.amount === 0 || header.columns.get(col) !== t.month || section?.type !== t.type || relabeled || occupied.has(t.source.cell)) {
       if (!occupied.has(t.source.cell)) clearCell(cell);
       fresh.push(t);
       continue;
     }
     occupied.add(t.source.cell);
     writeTx(cell, t);
+    positions.set(t.id, { row, col });
   }
 
   // 3. New transactions. One at a time, because an inserted row shifts everything below it.
   for (const t of fresh) {
+    if (t.amount === 0) continue;
     const col = monthCol.get(t.month);
     const section = sections.find((s) => s.type === t.type);
     if (!col || !section) {
@@ -75,16 +92,25 @@ export async function writeWorkbook(original: ArrayBuffer, txsIn: Transaction[])
       continue;
     }
     const row = t.type === 'variable' ? freeVariableRow(ws, section, col, t) : freeLabeledRow(ws, section, col, t);
-    const target = row ?? insertRowFor(ws, sections, section, t);
-    if (t.type !== 'variable' && !ws.getCell(target, 1).value) ws.getCell(target, 1).value = t.description;
+    let target = row;
+    if (target === null) {
+      target = insertRowFor(ws, sections, section, t);
+      for (const p of positions.values()) if (p.row >= target) p.row++;
+    }
+    if (t.type !== 'variable' && !ws.getCell(target, 1).value && t.description !== NO_LABEL) {
+      ws.getCell(target, 1).value = t.description;
+    }
     const cell = ws.getCell(target, col);
     copyStyleFromAbove(ws, target, col);
     writeTx(cell, t);
+    positions.set(t.id, { row: target, col });
   }
 
   addLedgerSheet(wb, ledgerOrder(txs));
   const data = (await wb.xlsx.writeBuffer()) as ArrayBuffer;
-  return { data, warnings };
+  const placements: Record<string, string> = {};
+  for (const [id, p] of positions) placements[id] = colLetter(p.col) + p.row;
+  return { data, warnings, placements };
 }
 
 /** Fallback when no original file is stored for the year (data entered only in the app). */
@@ -94,6 +120,7 @@ export async function writeLedgerOnly(txs: Transaction[]): Promise<ExportResult>
   return {
     data: (await wb.xlsx.writeBuffer()) as ArrayBuffer,
     warnings: ['Nenhuma planilha original importada para este ano: exportado só a aba Lançamentos.'],
+    placements: {},
   };
 }
 
@@ -166,7 +193,7 @@ function freeVariableRow(ws: ExcelJS.Worksheet, s: SectionLayout, col: number, t
 
 function freeLabeledRow(ws: ExcelJS.Worksheet, s: SectionLayout, col: number, t: Transaction): number | null {
   for (let r = s.firstRow; r <= s.lastRow; r++) {
-    const label = cellText(ws.getCell(r, 1)).trim();
+    const label = rowLabel(ws, r);
     if (label === t.description && isEmpty(ws.getCell(r, col)) && !isFormula(ws.getCell(r, col))) return r;
   }
   return null;

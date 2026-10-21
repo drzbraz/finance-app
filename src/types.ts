@@ -33,6 +33,8 @@ export interface Transaction {
   noteHeader?: string;
   /** Soft delete: kept so export can clear the source cell. */
   deleted?: boolean;
+  /** ISO timestamp of the last change made in the app (drives the "not exported" badge). */
+  updatedAt?: string;
 }
 
 export interface CategoryRule {
@@ -45,14 +47,20 @@ export interface CategoryRule {
   priority: number; // higher wins
 }
 
+export type ThemePref = 'system' | 'light' | 'dark';
+
 export interface Settings {
   id: 'settings';
   eurBrlRate: number;
+  /** Goal read from the sheet's META cell; mirrored into the "Patrimônio" goal. */
   goalBRL: number;
   reserveEUR: number;
   patrimonyBR: number; // BRL
   patrimonyEU: number; // EUR
   savingsRateTarget: number; // 0-1
+  theme: ThemePref;
+  /** year -> ISO time of the last xlsx export */
+  lastExportAt: Record<number, string>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -63,7 +71,42 @@ export const DEFAULT_SETTINGS: Settings = {
   patrimonyBR: 0,
   patrimonyEU: 0,
   savingsRateTarget: 0.3,
+  theme: 'system',
+  lastExportAt: {},
 };
+
+/** Monthly spending limit for one category. */
+export interface Budget {
+  category: string;
+  monthlyLimit: number; // EUR
+}
+
+/** A recurring bill/income line, keyed like the checklist: "type|description". */
+export interface RecurringItem {
+  key: string;
+  type: TxType;
+  description: string;
+  dueDay?: number; // 1-31
+  expectedAmount?: number;
+  active: boolean;
+}
+
+export interface GoalContribution {
+  date: string; // ISO yyyy-mm-dd
+  amount: number;
+}
+
+export interface Goal {
+  id: string;
+  name: string;
+  target: number;
+  currency: 'EUR' | 'BRL';
+  targetDate?: string; // ISO yyyy-mm-dd
+  /** 'patrimony' = current value is patrimonyBR + patrimonyEU × rate; 'manual' = sum of contributions. */
+  source: 'patrimony' | 'manual';
+  contributions: GoalContribution[];
+  createdAt: string;
+}
 
 export type WarningKind =
   | 'no-description'

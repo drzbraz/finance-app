@@ -8,10 +8,17 @@ import {
   hasYear,
   importBackup,
   replaceYear,
+  restoreTransaction,
+  saveBudget,
+  saveGoal,
+  saveRecurring,
+  saveSettings,
   saveTransaction,
+  unexportedCount,
   type Backup,
 } from '../src/db/repo';
-import { FinanceDB } from '../src/db/schema';
+import Dexie from 'dexie';
+import { FinanceDB, PATRIMONY_GOAL_ID } from '../src/db/schema';
 import { DEFAULT_SETTINGS } from '../src/types';
 import { tx } from './helpers';
 
@@ -129,7 +136,7 @@ describe('backup', () => {
     await replaceYear(2026, [tx({ id: 'imp-2026-B4', year: 2026, type: 'income' })], wbFile(bytes), { goalBRL: 7 }, db);
     await saveTransaction(tx({ id: 'gone', deleted: true, source: { sheet: 's', cell: 'B5' } }), db);
     const backup = JSON.parse(JSON.stringify(await exportBackup(db))) as Backup;
-    expect(backup).toMatchObject({ app: 'finance-app', version: 1 });
+    expect(backup).toMatchObject({ app: 'finance-app', version: 2 });
 
     const other = new FinanceDB('test-' + Math.random());
     try {
@@ -151,5 +158,81 @@ describe('backup', () => {
     await expect(importBackup({ app: 'x' } as unknown as Backup, db)).rejects.toThrow(/inválido/);
     await expect(importBackup(null as unknown as Backup, db)).rejects.toThrow();
     expect(await db.transactions.get('keep')).toBeDefined();
+  });
+});
+
+describe('v2 additions', () => {
+  it('saveTransaction stamps updatedAt; restoreTransaction puts the row back as given', async () => {
+    const t = tx({ id: 'a' });
+    await saveTransaction(t, db);
+    expect((await db.transactions.get('a'))!.updatedAt).toBeDefined();
+    await restoreTransaction(t, db);
+    expect(await db.transactions.get('a')).toEqual(t);
+  });
+
+  it('unexportedCount counts edits since the last export, or since import', async () => {
+    await replaceYear(2026, [tx({ id: 'imp-2026-B4', year: 2026, source: { sheet: 's', cell: 'B4' } })], wbFile(), {}, db);
+    expect(await unexportedCount(2026, db)).toBe(0);
+    await saveTransaction(tx({ id: 'n', year: 2026 }), db);
+    expect(await unexportedCount(2026, db)).toBe(1);
+    await saveSettings({ lastExportAt: { 2026: new Date(Date.now() + 1000).toISOString() } }, db);
+    expect(await unexportedCount(2026, db)).toBe(0);
+  });
+
+  it('saveBudget deletes a budget whose limit is not positive', async () => {
+    await saveBudget({ category: 'Lazer', monthlyLimit: 100 }, db);
+    expect(await db.budgets.get('Lazer')).toEqual({ category: 'Lazer', monthlyLimit: 100 });
+    await saveBudget({ category: 'Lazer', monthlyLimit: 0 }, db);
+    expect(await db.budgets.get('Lazer')).toBeUndefined();
+    await saveBudget({ category: 'Casa', monthlyLimit: -5 }, db);
+    expect(await db.budgets.count()).toBe(0);
+  });
+
+  it('round-trips v2 tables through a backup', async () => {
+    await saveBudget({ category: 'Lazer', monthlyLimit: 100 }, db);
+    await saveRecurring({ key: 'fixed|Aluguel', type: 'fixed', description: 'Aluguel', dueDay: 5, active: true }, db);
+    await saveGoal({ id: 'g', name: 'Viagem', target: 2000, currency: 'EUR', source: 'manual', contributions: [{ date: '2026-01-01', amount: 50 }], createdAt: 'x' }, db);
+    const backup = JSON.parse(JSON.stringify(await exportBackup(db))) as Backup;
+    const other = new FinanceDB('test-' + Math.random());
+    try {
+      await importBackup(backup, other);
+      expect(await other.budgets.toArray()).toEqual(await db.budgets.toArray());
+      expect(await other.recurring.toArray()).toEqual(await db.recurring.toArray());
+      expect(await other.goals.toArray()).toEqual(await db.goals.toArray());
+    } finally {
+      await other.delete();
+    }
+  });
+
+  it('imports a v1 backup, filling new settings and rebuilding the Patrimônio goal', async () => {
+    const v1 = {
+      app: 'finance-app', version: 1, exportedAt: 'x', transactions: [tx({ id: 'old' })], rules: [],
+      settings: { id: 'settings', eurBrlRate: 6, goalBRL: 500000, reserveEUR: 0, patrimonyBR: 0, patrimonyEU: 0, savingsRateTarget: 0.3 },
+      workbooks: [],
+    } as unknown as Backup;
+    await saveBudget({ category: 'Lazer', monthlyLimit: 100 }, db);
+    await importBackup(v1, db);
+    expect(await getSettings(db)).toMatchObject({ theme: 'system', lastExportAt: {}, goalBRL: 500000 });
+    expect(await db.goals.get(PATRIMONY_GOAL_ID)).toMatchObject({ target: 500000, currency: 'BRL', source: 'patrimony' });
+    expect(await db.budgets.count()).toBe(0); // restore replaces everything
+    expect(await db.transactions.get('old')).toBeDefined();
+  });
+
+  it('upgrades a v1 database: META becomes the Patrimônio goal, settings gain the new fields', async () => {
+    const name = 'test-upgrade-' + Math.random();
+    const v1 = new Dexie(name);
+    v1.version(1).stores({ transactions: 'id, year, [year+month], type, category, paid', rules: 'id, category', settings: 'id', workbooks: 'year' });
+    await v1.table('settings').put({ id: 'settings', eurBrlRate: 6, goalBRL: 300000, reserveEUR: 0, patrimonyBR: 1, patrimonyEU: 2, savingsRateTarget: 0.3 });
+    await v1.table('transactions').put(tx({ id: 'kept' }));
+    v1.close();
+
+    const upgraded = new FinanceDB(name);
+    try {
+      expect(await getSettings(upgraded)).toMatchObject({ theme: 'system', lastExportAt: {}, patrimonyBR: 1 });
+      expect(await upgraded.goals.get(PATRIMONY_GOAL_ID)).toMatchObject({ target: 300000 });
+      expect(await upgraded.transactions.get('kept')).toBeDefined();
+    } finally {
+      await upgraded.delete();
+    }
   });
 });

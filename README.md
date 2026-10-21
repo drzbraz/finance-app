@@ -1,8 +1,8 @@
 # Finanças: local personal finance app
 
 Imports the "Controle financeiro" Google Sheets export (.xlsx), turns it into categorized
-transactions, shows a monthly checklist, a spreadsheet-like grid and a dashboard, and exports
-back to .xlsx in the same layout.
+transactions, and gives you a dashboard with insights, bills, budgets, goals and year-over-year
+comparison. It exports back to .xlsx in the same layout.
 
 **Local only.** No backend, no API calls, no telemetry. Data lives in the browser's IndexedDB.
 The production build ships a Content-Security-Policy with `connect-src 'none'`, so the app
@@ -26,19 +26,42 @@ give IndexedDB a throwaway origin there, so your data may not persist. Use `npm 
 Data belongs to the browser profile and origin (e.g. `http://localhost:4173`). Use
 **Importar / Exportar → Backup .json** to move or keep it safe.
 
-## Screens
+## Using the app
 
-- **Checklist do mês** (home): one checkbox per recurring item (income, investments, fixed
-  expenses). Ticking it is the same as painting the cell green in the sheet. Items not recorded yet
-  this month show last month's amount as "~expected"; ticking one creates it.
-- **Grade mensal**: the sheet's layout (sections × months), computed from transactions. Green =
-  paid. Click a cell to edit its transactions; use the small checkbox to toggle paid.
-- **Lançamentos**: filter by month, type, category, tag, and paid status; inline edit; add; delete.
-  Changing a category offers to create a keyword rule and re-categorize matching entries.
-- **Dashboard**: savings rate (monthly, year-to-date, target), spending by category, top 5
-  expenses, fixed/variable/additional/investment per month, cumulative balance, category vs.
-  average (>30% flagged), goal progress in BRL with a projection, and pending items.
-- **Configurações**: exchange rate, goal, patrimony, reserve, savings target; your custom rules.
+The top bar is always there: **‹ month ›** switcher · **Importar** · **Exportar** · theme. Add an
+entry with **+ Novo lançamento**, the round **+** on phones, or the **N** key.
+
+- **Importar**: click it, or **drop an .xlsx (or a .json backup) anywhere on the window**. You get a
+  plain summary ("Encontramos 196 lançamentos de 2026…") and one button. Re-importing a year keeps
+  categories you chose by hand and entries created in the app. Importing an older year never
+  changes your current settings (exchange rate, patrimony, goal).
+- **Exportar**: "Planilha .xlsx" (your original layout) or "Backup .json" (everything). A badge
+  counts changes made since the last export. After an export, that file becomes the baseline, so
+  re-importing it never duplicates entries.
+- **Novo lançamento** puts the amount first. Typing `25 jantar #lisboa` fills amount, description and
+  tag in one go. The category is suggested from your rules and past entries. Enter saves,
+  ⌘/Ctrl+Enter saves and keeps the dialog open, and every save/delete/toggle offers **Desfazer**.
+
+### Pages
+
+- **Início**: month KPIs (saldo, with a forecast for the current month; spent so far vs projected;
+  savings rate; main goal), insight cards ("Saúde está 598% acima da sua média", "No ritmo atual o
+  mês fecha em −€X"…), budgets near their limit, upcoming bills, and the charts.
+- **Transações**: entries grouped by day, with search, filter chips (type, pending/paid, #tags),
+  category filter, and "Ano todo". Click a row to edit it in a side sheet; the round check toggles paid.
+- **Contas**: recurring bills and income (rent, salary, subscriptions…) found from your sheet,
+  sorted into Atrasadas / Próximos 7 dias / Mais tarde / Pagas. One click marks an item paid (the
+  green cell in the sheet). Set due days and expected amounts under "Vencimentos e valores".
+  **Iniciar mês** creates the month's pending bills.
+- **Orçamentos**: a monthly limit per category, with progress and states (✓ ok · ⚠ 80% · ✕ estourou).
+  "Sugerir pela média" fills limits from your history.
+- **Metas**: several savings goals in € or R$. "Patrimônio" follows your patrimony (BR + EU ×
+  rate) and the sheet's META; other goals use manual contributions. Each card shows the amount
+  needed per month to reach the deadline and the projected date at your current pace.
+- **Comparar**: one year against another (e.g. 2025 vs 2026), same period or full year, by month
+  and by category.
+- **Configurações**: exchange rate, patrimony, reserve, savings-rate target, theme
+  (auto/light/dark), your category rules, and deleting a year.
 
 ## Parsing assumptions
 
@@ -98,9 +121,11 @@ kept, and entries created only in the app are kept too.
 ```
 src/parser/     xlsx → transactions (sections, colours, comments, config)
 src/rules/      default categories + keyword rules engine
-src/analytics/  pure aggregations: totals, saldo, savings rate, deviations, goal, checklist
-src/db/         Dexie schema, repository, JSON backup
+src/analytics/  pure functions: totals, saldo, savings rate, deviations, checklist, bills,
+                budgets, goals, forecast + insights, year over year
+src/db/         Dexie schema (v2 migration), repository, export action, JSON backup (v1/v2)
 src/export/     write back into the original workbook; formula row shifting
-src/components/ React views
+src/components/ shell (sidebar, top bar, tabs), Quick Add, Import/Export, sheets, charts, UI kit
+src/pages/      Início, Transações, Contas, Orçamentos, Metas, Comparar, Configurações
 tests/          Vitest (synthetic fixtures built with ExcelJS; no personal data)
 ```
