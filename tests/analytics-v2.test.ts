@@ -161,7 +161,7 @@ describe('forecast and insights', () => {
     const txs = [tx({ month: 3, amount: 100 }), tx({ month: 3, type: 'income', amount: 1000 })];
     expect(forecastMonth(txs, [rec({ description: 'MEO', expectedAmount: 40 })], 2026, 3, day('2026-04-10'))).toEqual({
       isForecast: false, spentSoFar: 100, projectedSpend: 100, projectedIncome: 1000, projectedInvestment: 0, projectedSaldo: 900, expectedRecurring: 0,
-      beforeInvestToday: 900, projectedBeforeInvest: 900, expectedFlexibleRest: 0, typicalDaily: 0, basis: 'actual',
+      expectedFlexibleRest: 0, typicalDaily: 0, basis: 'actual',
     });
     // Same month number, another year: not the current month either.
     expect(forecastMonth(txs, [], 2025, 4, day('2026-04-10')).isForecast).toBe(false);
@@ -297,17 +297,5 @@ describe('forecast with history (one-offs are not multiplied)', () => {
     const none = forecastMonth([tx({ month: 10, amount: 210 })], [], 2026, 10, today);
     expect(none.basis).toBe('pace');
     expect(none.projectedSpend).toBe(310); // 210 / 21 × 31
-  });
-
-  it('reports the saldo before investing', () => {
-    const txs = [
-      tx({ month: 10, type: 'income', amount: 1600 }),
-      tx({ month: 10, type: 'fixed', amount: 1100 }),
-      tx({ month: 10, amount: 850 }),
-      tx({ month: 10, type: 'investment', amount: 650 }),
-    ];
-    const oct = forecastMonth(txs, [], 2026, 10, new Date(2026, 10, 3)); // viewed in November: actuals
-    expect(oct.beforeInvestToday).toBe(-350);
-    expect(oct.projectedSaldo).toBe(-1000);
   });
 });

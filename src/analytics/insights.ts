@@ -13,9 +13,6 @@ export interface MonthForecast {
   projectedIncome: number;
   projectedInvestment: number;
   projectedSaldo: number;
-  /** Income − expenses, i.e. the saldo before money moved to investments. */
-  beforeInvestToday: number;
-  projectedBeforeInvest: number;
   /** Recurring amounts expected but not recorded yet, included in the projection. */
   expectedRecurring: number;
   /** Variable + additional spending expected for the days left (0 outside the current month). */
@@ -61,7 +58,6 @@ export function forecastMonth(
   const spentSoFar = round2(sum(isExpense));
   const income = sum((t) => t.type === 'income');
   const investment = sum((t) => t.type === 'investment');
-  const beforeInvestToday = round2(income - spentSoFar);
   const isCurrent = today.getFullYear() === year && today.getMonth() + 1 === month;
   if (!isCurrent) {
     return {
@@ -71,8 +67,6 @@ export function forecastMonth(
       projectedIncome: round2(income),
       projectedInvestment: round2(investment),
       projectedSaldo: round2(income - spentSoFar - investment),
-      beforeInvestToday,
-      projectedBeforeInvest: beforeInvestToday,
       expectedRecurring: 0,
       expectedFlexibleRest: 0,
       typicalDaily: 0,
@@ -104,8 +98,6 @@ export function forecastMonth(
     projectedIncome,
     projectedInvestment,
     projectedSaldo: round2(projectedIncome - projectedSpend - projectedInvestment),
-    beforeInvestToday,
-    projectedBeforeInvest: round2(projectedIncome - projectedSpend),
     expectedRecurring: round2(expected('fixed') + expected('income') + expected('investment')),
     expectedFlexibleRest: round2(expectedFlexibleRest),
     typicalDaily: round2(typicalDaily),
@@ -153,8 +145,7 @@ export function insights({ txs, budgets, recurring, settings, year, month, today
         `Gastos previstos: ${eur.format(forecast.projectedSpend)} (até agora ${eur.format(forecast.spentSoFar)}` +
         (forecast.expectedFlexibleRest > 0
           ? ` + ~${eur.format(forecast.expectedFlexibleRest)} de variáveis nos próximos dias, ${forecast.basis === 'history' ? 'pela sua média' : 'no ritmo do mês'}).`
-          : ').') +
-        (forecast.projectedInvestment > 0 ? ` Antes de investir: ${eur.format(forecast.projectedBeforeInvest)}.` : ''),
+          : ').'),
       weight: negative ? 90 : 40,
     });
   }
