@@ -161,6 +161,7 @@ describe('forecast and insights', () => {
     const txs = [tx({ month: 3, amount: 100 }), tx({ month: 3, type: 'income', amount: 1000 })];
     expect(forecastMonth(txs, [rec({ description: 'MEO', expectedAmount: 40 })], 2026, 3, day('2026-04-10'))).toEqual({
       isForecast: false, spentSoFar: 100, projectedSpend: 100, projectedIncome: 1000, projectedInvestment: 0, projectedSaldo: 900, expectedRecurring: 0,
+      beforeInvestToday: 900, projectedBeforeInvest: 900, expectedFlexibleRest: 0, typicalDaily: 0, basis: 'actual',
     });
     // Same month number, another year: not the current month either.
     expect(forecastMonth(txs, [], 2025, 4, day('2026-04-10')).isForecast).toBe(false);
@@ -271,5 +272,42 @@ describe('yearOverYear', () => {
 
   it('defaults to the full year', () => {
     expect(yearOverYear(a, b).totals.expenses.a).toBe(5150);
+  });
+});
+
+describe('forecast with history (one-offs are not multiplied)', () => {
+  const today = new Date(2026, 9, 21); // 21 Oct 2026, 10 days left
+
+  it('adds the typical daily spend of earlier months for the days left', () => {
+    const txs = [
+      tx({ month: 9, amount: 300 }), // Sep: 300 / 30 = 10/day
+      tx({ month: 8, amount: 310 }), // Aug: 310 / 31 = 10/day
+      tx({ month: 10, amount: 700 }), // a one-off this month
+    ];
+    const f = forecastMonth(txs, [], 2026, 10, today);
+    expect(f.basis).toBe('history');
+    expect(f.typicalDaily).toBe(10);
+    expect(f.expectedFlexibleRest).toBe(100);
+    expect(f.projectedSpend).toBe(800); // 700 so far + 10 × 10, not 700 / 21 × 31
+  });
+
+  it('ignores earlier months with no variable spending, and falls back to pace without history', () => {
+    const withGap = [tx({ month: 9, amount: 300 }), tx({ month: 8, type: 'fixed', amount: 50 }), tx({ month: 10, amount: 210 })];
+    expect(forecastMonth(withGap, [], 2026, 10, today).typicalDaily).toBe(10);
+    const none = forecastMonth([tx({ month: 10, amount: 210 })], [], 2026, 10, today);
+    expect(none.basis).toBe('pace');
+    expect(none.projectedSpend).toBe(310); // 210 / 21 × 31
+  });
+
+  it('reports the saldo before investing', () => {
+    const txs = [
+      tx({ month: 10, type: 'income', amount: 1600 }),
+      tx({ month: 10, type: 'fixed', amount: 1100 }),
+      tx({ month: 10, amount: 850 }),
+      tx({ month: 10, type: 'investment', amount: 650 }),
+    ];
+    const oct = forecastMonth(txs, [], 2026, 10, new Date(2026, 10, 3)); // viewed in November: actuals
+    expect(oct.beforeInvestToday).toBe(-350);
+    expect(oct.projectedSaldo).toBe(-1000);
   });
 });

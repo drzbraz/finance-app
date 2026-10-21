@@ -124,7 +124,12 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
         <Kpi
           label={forecast.isForecast ? 'Saldo previsto' : 'Saldo do mês'}
           value={eur.format(forecast.isForecast ? forecast.projectedSaldo : bal[month - 1])}
-          sub={forecast.isForecast ? `Hoje: ${eur.format(bal[month - 1])}` : `Acumulado no ano: ${eur.format(cum[month - 1])}`}
+          sub={
+            (forecast.isForecast ? `Hoje: ${eur.format(bal[month - 1])}` : `Acumulado no ano: ${eur.format(cum[month - 1])}`) +
+            (t.investment[month - 1] > 0 || forecast.projectedInvestment > 0
+              ? ` · antes de investir: ${eur.format(forecast.isForecast ? forecast.projectedBeforeInvest : forecast.beforeInvestToday)}`
+              : '')
+          }
           tone={(forecast.isForecast ? forecast.projectedSaldo : bal[month - 1]) < 0 ? 'bad' : 'good'}
         />
         <Kpi

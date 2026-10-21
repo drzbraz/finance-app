@@ -13,14 +13,41 @@ export interface MonthForecast {
   projectedIncome: number;
   projectedInvestment: number;
   projectedSaldo: number;
+  /** Income − expenses, i.e. the saldo before money moved to investments. */
+  beforeInvestToday: number;
+  projectedBeforeInvest: number;
   /** Recurring amounts expected but not recorded yet, included in the projection. */
   expectedRecurring: number;
+  /** Variable + additional spending expected for the days left (0 outside the current month). */
+  expectedFlexibleRest: number;
+  /** Typical variable spend per day used for the days left. */
+  typicalDaily: number;
+  /** 'history' = average of earlier months; 'pace' = this month's pace (no history yet). */
+  basis: 'history' | 'pace' | 'actual';
 }
 
 /**
- * Month-end projection. Variable and additional spending is extrapolated at the pace so far
- * (spent ÷ days elapsed × days in month); fixed bills, income and investments use what is
- * recorded plus the expected amount of active recurring items not recorded yet.
+ * Typical variable + additional spend per day: the average of the earlier months of the year
+ * that have any such spending (months with none usually just weren't logged), per calendar day.
+ */
+export function typicalDailyFlexible(txs: Transaction[], year: number, month: number): number | null {
+  const monthly = new Map<number, number>();
+  for (const t of txs) {
+    if (t.month >= month || (t.type !== 'variable' && t.type !== 'additional')) continue;
+    monthly.set(t.month, (monthly.get(t.month) ?? 0) + t.amount);
+  }
+  const months = [...monthly.entries()].filter(([, v]) => v > 0);
+  if (!months.length) return null;
+  const perDay = months.map(([m, v]) => v / daysInMonth(year, m));
+  return perDay.reduce((a, b) => a + b, 0) / perDay.length;
+}
+
+/**
+ * Month-end projection. Variable and additional spending = what is already spent + the typical
+ * daily spend (from earlier months) for the days left, so one big one-off (a dentist bill) is
+ * not multiplied by the rest of the month. Without history it falls back to this month's pace.
+ * Fixed bills, income and investments use what is recorded plus the expected amount of active
+ * recurring items not recorded yet.
  */
 export function forecastMonth(
   txs: Transaction[],
@@ -34,6 +61,7 @@ export function forecastMonth(
   const spentSoFar = round2(sum(isExpense));
   const income = sum((t) => t.type === 'income');
   const investment = sum((t) => t.type === 'investment');
+  const beforeInvestToday = round2(income - spentSoFar);
   const isCurrent = today.getFullYear() === year && today.getMonth() + 1 === month;
   if (!isCurrent) {
     return {
@@ -43,12 +71,18 @@ export function forecastMonth(
       projectedIncome: round2(income),
       projectedInvestment: round2(investment),
       projectedSaldo: round2(income - spentSoFar - investment),
+      beforeInvestToday,
+      projectedBeforeInvest: beforeInvestToday,
       expectedRecurring: 0,
+      expectedFlexibleRest: 0,
+      typicalDaily: 0,
+      basis: 'actual',
     };
   }
 
   const elapsed = today.getDate();
   const dim = daysInMonth(year, month);
+  const daysLeft = dim - elapsed;
   const flexible = sum((t) => t.type === 'variable' || t.type === 'additional');
   const fixed = sum((t) => t.type === 'fixed');
   const missing = recurring.filter(
@@ -56,7 +90,11 @@ export function forecastMonth(
   );
   const expected = (type: string) => missing.filter((r) => r.type === type).reduce((a, r) => a + (r.expectedAmount ?? 0), 0);
 
-  const projectedSpend = round2(fixed + expected('fixed') + (flexible / elapsed) * dim);
+  const history = typicalDailyFlexible(txs, year, month);
+  const typicalDaily = history ?? flexible / elapsed;
+  const expectedFlexibleRest = typicalDaily * daysLeft;
+
+  const projectedSpend = round2(fixed + expected('fixed') + flexible + expectedFlexibleRest);
   const projectedIncome = round2(income + expected('income'));
   const projectedInvestment = round2(investment + expected('investment'));
   return {
@@ -66,7 +104,12 @@ export function forecastMonth(
     projectedIncome,
     projectedInvestment,
     projectedSaldo: round2(projectedIncome - projectedSpend - projectedInvestment),
+    beforeInvestToday,
+    projectedBeforeInvest: round2(projectedIncome - projectedSpend),
     expectedRecurring: round2(expected('fixed') + expected('income') + expected('investment')),
+    expectedFlexibleRest: round2(expectedFlexibleRest),
+    typicalDaily: round2(typicalDaily),
+    basis: history === null ? 'pace' : 'history',
   };
 }
 
@@ -106,7 +149,12 @@ export function insights({ txs, budgets, recurring, settings, year, month, today
       title: negative
         ? `No ritmo atual, o mês fecha em ${eur.format(forecast.projectedSaldo)}`
         : `No ritmo atual, sobram ${eur.format(forecast.projectedSaldo)} no fim do mês`,
-      detail: `Previsão de gastos: ${eur.format(forecast.projectedSpend)} (até agora ${eur.format(forecast.spentSoFar)}).`,
+      detail:
+        `Gastos previstos: ${eur.format(forecast.projectedSpend)} (até agora ${eur.format(forecast.spentSoFar)}` +
+        (forecast.expectedFlexibleRest > 0
+          ? ` + ~${eur.format(forecast.expectedFlexibleRest)} de variáveis nos próximos dias, ${forecast.basis === 'history' ? 'pela sua média' : 'no ritmo do mês'}).`
+          : ').') +
+        (forecast.projectedInvestment > 0 ? ` Antes de investir: ${eur.format(forecast.projectedBeforeInvest)}.` : ''),
       weight: negative ? 90 : 40,
     });
   }
