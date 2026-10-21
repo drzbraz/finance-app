@@ -50,6 +50,7 @@ export function mergeRecurring(txs: Transaction[], stored: RecurringItem[], mont
   for (const i of monthChecklist(txs, month).items) {
     const s = byKey.get(i.key);
     byKey.delete(i.key);
+    if (s?.removed) continue;
     const lastAmount = i.txs.length ? i.txs.reduce((a, t) => a + t.amount, 0) : i.expected;
     out.push({
       key: i.key,
@@ -60,7 +61,17 @@ export function mergeRecurring(txs: Transaction[], stored: RecurringItem[], mont
       expectedAmount: s?.expectedAmount ?? lastAmount,
     });
   }
-  return [...out, ...byKey.values()];
+  return [...out, ...[...byKey.values()].filter((s) => !s.removed)];
+}
+
+/**
+ * Renames a recurring line: every transaction of the year with the old type+description gets
+ * the new name/type, so history and the sheet row stay one line. Returns the changed rows.
+ */
+export function renameRecurringTxs(txs: Transaction[], from: RecurringItem, to: { type: TxType; description: string }): Transaction[] {
+  return txs
+    .filter((t) => t.type === from.type && t.description === from.description)
+    .map((t) => ({ ...t, type: to.type, description: to.description }));
 }
 
 /** Buckets each active recurring item for `year`/`month` relative to `today`. */

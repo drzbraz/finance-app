@@ -89,6 +89,8 @@ export interface RecurringItem {
   dueDay?: number; // 1-31
   expectedAmount?: number;
   active: boolean;
+  /** Deleted from Contas: hidden even though past transactions still carry its name. */
+  removed?: boolean;
 }
 
 export interface GoalContribution {

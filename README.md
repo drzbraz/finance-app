@@ -51,8 +51,11 @@ entry with **+ Novo lançamento**, the round **+** on phones, or the **N** key.
   category filter, and "Ano todo". Click a row to edit it in a side sheet; the round check toggles paid.
 - **Contas**: recurring bills and income (rent, salary, subscriptions…) found from your sheet,
   sorted into Atrasadas / Próximos 7 dias / Mais tarde / Pagas. One click marks an item paid (the
-  green cell in the sheet). Set due days and expected amounts under "Vencimentos e valores".
-  **Iniciar mês** creates the month's pending bills.
+  green cell in the sheet). **+ Nova conta** adds a bill or income line; click a line (or ✎) to
+  change its name, type, monthly amount, due day or this month's amount, to deactivate it, or to
+  delete it (past entries stay in the history). **Iniciar mês** creates the month's pending bills.
+  **Limites de gasto**: set a monthly amount for a category (e.g. Lazer €200) and see how much
+  is left, with a per-day amount for the rest of the month. These are the same limits as Orçamentos.
 - **Orçamentos**: a monthly limit per category, with progress and states (✓ ok · ⚠ 80% · ✕ estourou).
   "Sugerir pela média" fills limits from your history.
 - **Metas**: several savings goals in € or R$. "Patrimônio" follows your patrimony (BR + EU ×

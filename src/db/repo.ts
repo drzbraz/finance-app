@@ -151,6 +151,29 @@ export async function saveRecurring(item: RecurringItem, db: FinanceDB = default
   await db.recurring.put(item);
 }
 
+/**
+ * Saves an edited recurring line. When its name or type changed, the old key is tombstoned
+ * (so the old name is not derived again from the data) and `renamed` transactions are saved.
+ */
+export async function updateRecurring(
+  previous: RecurringItem | null,
+  next: RecurringItem,
+  renamed: Transaction[],
+  db: FinanceDB = defaultDb,
+): Promise<void> {
+  await db.transaction('rw', db.recurring, db.transactions, async () => {
+    if (previous && previous.key !== next.key) await db.recurring.put({ ...previous, removed: true, active: false });
+    await db.recurring.put({ ...next, removed: false });
+    const now = new Date().toISOString();
+    await db.transactions.bulkPut(renamed.map((t) => ({ ...t, updatedAt: now })));
+  });
+}
+
+/** Removes a line from Contas; past transactions keep their history. */
+export async function removeRecurring(item: RecurringItem, db: FinanceDB = defaultDb): Promise<void> {
+  await db.recurring.put({ ...item, removed: true, active: false });
+}
+
 export async function addRuleAndApply(rule: CategoryRule, db: FinanceDB = defaultDb): Promise<number> {
   return db.transaction('rw', db.rules, db.transactions, async () => {
     await db.rules.put(rule);
