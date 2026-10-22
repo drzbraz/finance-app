@@ -13,7 +13,7 @@ import {
   type YearStatus,
 } from '@finance/shared';
 import { encode, request, requestFile } from './http';
-import { EVERYTHING, keys, TRANSACTIONS, YEAR_STATUS } from './keys';
+import { EVERYTHING, keys, TRANSACTIONS } from './keys';
 import { invalidate } from './store';
 
 /**
@@ -34,7 +34,7 @@ export const fetchRecurring = () => request<RecurringItem[]>('GET', '/recurring'
 
 // ---- transactions ----
 
-const transactionsChanged = () => invalidate(TRANSACTIONS, keys.years, YEAR_STATUS);
+const transactionsChanged = () => invalidate(TRANSACTIONS, keys.years);
 
 export async function saveTransaction(tx: Transaction): Promise<void> {
   await request('PUT', `/transactions/${encode(tx.id)}`, tx);
@@ -67,7 +67,7 @@ export async function restoreTransaction(tx: Transaction): Promise<void> {
 
 export async function saveSettings(patch: Partial<Omit<Settings, 'id'>>): Promise<void> {
   await request('PATCH', '/settings', patch);
-  await invalidate(keys.settings, YEAR_STATUS);
+  await invalidate(keys.settings);
 }
 
 /** Saves the rule and re-categorises automatic entries; returns how many changed. */
@@ -118,7 +118,7 @@ export async function saveRecurring(item: RecurringItem): Promise<void> {
 /** Saves an edited line; a rename tombstones the old key and saves the re-labelled `renamed` entries. */
 export async function updateRecurring(previous: RecurringItem | null, next: RecurringItem, renamed: Transaction[]): Promise<void> {
   await request('POST', '/recurring/update', { previous, next, renamed });
-  await invalidate(keys.recurring, TRANSACTIONS, YEAR_STATUS);
+  await invalidate(keys.recurring, TRANSACTIONS);
 }
 
 /** Removes a line from Contas; past transactions keep their history. */
@@ -166,7 +166,7 @@ export async function exportYearXlsx(year: number): Promise<YearExport> {
     fileName: fileNameOf(response) ?? `Controle financeiro ${year}.xlsx`,
     warnings: JSON.parse(decodeURIComponent(response.headers.get(EXPORT_WARNINGS_HEADER) ?? '%5B%5D')) as string[],
   };
-  await invalidate(TRANSACTIONS, keys.settings, YEAR_STATUS);
+  await invalidate(TRANSACTIONS, keys.settings);
   return result;
 }
 

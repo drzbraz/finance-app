@@ -61,12 +61,14 @@ export class SpreadsheetImportService {
   }
 
   private async withManualChoicesKept(year: number, incoming: Transaction[]): Promise<Transaction[]> {
-    const current = await this.transactions.findByYear(year);
-    const manual = new Map(current.filter((t) => t.categorySource === 'manual').map((t) => [t.id, t]));
+    const current = new Map((await this.transactions.findByYear(year)).map((t) => [t.id, t]));
     return incoming.map((t) => {
-      const previous = manual.get(t.id);
+      const previous = current.get(t.id);
       if (!previous) return t;
-      return { ...t, category: previous.category, categorySource: 'manual', tags: [...new Set([...t.tags, ...previous.tags])] };
+      // The sheet only has my share; the split stays while the cell still holds that share.
+      const kept = previous.split && previous.amount === t.amount ? { ...t, split: previous.split } : t;
+      if (previous.categorySource !== 'manual') return kept;
+      return { ...kept, category: previous.category, categorySource: 'manual', tags: [...new Set([...t.tags, ...previous.tags])] };
     });
   }
 

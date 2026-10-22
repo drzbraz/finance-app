@@ -108,17 +108,16 @@ describe('Exportar', () => {
     unmount();
   }
 
-  it('counts changes not exported yet, exports the xlsx with them, and clears the badge', async () => {
+  it('exports the xlsx with the changes made in the app, without counting them on the button', async () => {
     await importYear();
     const { user } = setup(<ExportMenu year={2026} />);
-    expect(screen.queryByTitle(/não exportada/)).not.toBeInTheDocument();
 
     vi.setSystemTime(new Date(TODAY.getTime() + 60_000));
     await saveTransaction({ id: 'new', year: 2026, month: 5, description: 'cinema', amount: 9, type: 'variable', category: 'Lazer', categorySource: 'auto', tags: [], paid: true });
-    expect(await screen.findByTitle('1 alteração(ões) não exportada(s)')).toHaveTextContent('1');
 
     await user.click(screen.getByRole('button', { name: /Exportar/ }));
-    expect(screen.getByText('1 alteração(ões) em 2026 ainda não estão na planilha.')).toBeInTheDocument();
+    expect(screen.queryByText(/não estão na planilha/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Exportar/ })).toHaveTextContent(/^⬇︎Exportar$/);
     await user.click(screen.getByRole('menuitem', { name: /Planilha 2026/ }));
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledOnce());
     const [data, name, mime] = vi.mocked(downloadBlob).mock.calls[0];
@@ -134,7 +133,6 @@ describe('Exportar', () => {
     // …the app now points to that cell, and nothing is pending.
     expect(await db.transactions.get(`imp-2026-${cells[0]}`)).toMatchObject({ description: 'cinema' });
     expect(await db.transactions.get('new')).toBeUndefined();
-    await waitFor(() => expect(screen.queryByTitle(/não exportada/)).not.toBeInTheDocument());
     expect(await screen.findByText('Planilha exportada')).toBeInTheDocument();
   });
 

@@ -149,7 +149,8 @@ describe('forecast and insights', () => {
       rec({ description: 'Aluguel', expectedAmount: 900 }),
       rec({ description: 'MEO', expectedAmount: 40 }),
       rec({ description: 'Off', expectedAmount: 999, active: false }),
-      rec({ type: 'investment', description: 'ETF', expectedAmount: 500 }),
+      rec({ type: 'investment', description: 'ETF', expectedAmount: 500, optional: false }),
+      rec({ type: 'investment', description: 'Extra', expectedAmount: 200 }), // optional by default: not reserved
     ];
     const f = forecastMonth(txs, recurring, 2026, 4, day('2026-04-10'));
     // 100 by day 10 of a 30-day month → 300; fixed 900 recorded + MEO 40 expected.

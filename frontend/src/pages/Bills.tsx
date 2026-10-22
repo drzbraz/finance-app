@@ -10,10 +10,11 @@ import { useRules, useStoredRecurring, useToday, useYearTransactions } from '../
 import { eur, MONTH_NAMES } from '../util';
 import { deleteTransactions, restoreTransaction, saveRecurring, saveTransaction, saveTransactions } from '../api/repo';
 
-const BUCKETS: { id: BillBucket; title: string; empty?: string }[] = [
+const BUCKETS: { id: BillBucket; title: string; hint?: string }[] = [
   { id: 'overdue', title: 'Atrasadas' },
   { id: 'soon', title: 'Próximos 7 dias' },
   { id: 'later', title: 'Mais tarde' },
+  { id: 'optional', title: 'Opcionais', hint: 'Só contam no mês se você lançar.' },
   { id: 'done', title: 'Pagas e recebidas' },
 ];
 
@@ -32,9 +33,11 @@ export default function Bills({ year, month }: { year: number; month: number }) 
   const bills = billsForMonth(txs, recurring, year, month, today);
   const toCreate = startMonthTxs(txs, recurring, year, month);
   const started = startedMonthTxs(txs, recurring, year, month);
-  const done = bills.filter((b) => b.done).length;
-  const toPay = bills.filter((b) => !b.done && b.item.type !== 'income').reduce((a, b) => a + b.amount, 0);
-  const toReceive = bills.filter((b) => !b.done && b.item.type === 'income').reduce((a, b) => a + b.amount, 0);
+  // Optional lines not recorded this month stay out of the totals and the progress.
+  const counted = bills.filter((b) => b.bucket !== 'optional');
+  const done = counted.filter((b) => b.done).length;
+  const toPay = counted.filter((b) => !b.done && b.item.type !== 'income').reduce((a, b) => a + b.amount, 0);
+  const toReceive = counted.filter((b) => !b.done && b.item.type === 'income').reduce((a, b) => a + b.amount, 0);
 
   const toggle = async (b: Bill) => {
     if (b.txs.length) {
@@ -91,8 +94,8 @@ export default function Bills({ year, month }: { year: number; month: number }) 
       <PageHeader
         title="Contas"
         subtitle={
-          bills.length
-            ? `${MONTH_NAMES[month - 1]} ${year} · ${done} de ${bills.length} feitas · ${eur.format(toPay)} a pagar · ${eur.format(toReceive)} a receber`
+          counted.length
+            ? `${MONTH_NAMES[month - 1]} ${year} · ${done} de ${counted.length} feitas · ${eur.format(toPay)} a pagar · ${eur.format(toReceive)} a receber`
             : `${MONTH_NAMES[month - 1]} ${year}`
         }
         actions={
@@ -134,7 +137,7 @@ export default function Bills({ year, month }: { year: number; month: number }) 
         </div>
       )}
 
-      {bills.length > 0 && <div className="mb-5"><ProgressBar value={done / bills.length} label="Contas feitas" /></div>}
+      {counted.length > 0 && <div className="mb-5"><ProgressBar value={done / counted.length} label="Contas feitas" /></div>}
 
       <div className="mb-5">
         <SpendingLimits txs={txs} year={year} month={month} />
@@ -149,28 +152,38 @@ export default function Bills({ year, month }: { year: number; month: number }) 
         />
       ) : (
         <div className="space-y-4">
-          {BUCKETS.map(({ id, title }) => {
+          {BUCKETS.map(({ id, title, hint }) => {
             const list = bills.filter((b) => b.bucket === id);
             if (!list.length) return null;
             return (
               <section key={id}>
-                <h2 className={`label mb-1.5 px-1 ${id === 'overdue' ? 'text-bad' : ''}`}>{title} · {list.length}</h2>
+                <h2 className={`label mb-1.5 px-1 ${id === 'overdue' ? 'text-bad' : ''}`}>
+                  {title} · {list.length}
+                  {hint && <span className="ml-2 font-normal normal-case tracking-normal text-ink-3">{hint}</span>}
+                </h2>
                 <ul className="card divide-y divide-line p-0">
                   {list.map((b) => (
                     <li key={b.item.key} className="flex items-center gap-3 px-4 py-3">
-                      <PaidCheck checked={b.done} onChange={() => toggle(b)} label={`${b.item.description} ${b.item.type === 'income' ? 'recebido' : 'pago'}`} />
+                      {b.bucket === 'optional' ? (
+                        <span className="h-6 w-6 shrink-0" aria-hidden />
+                      ) : (
+                        <PaidCheck checked={b.done} onChange={() => toggle(b)} label={`${b.item.description} ${b.item.type === 'income' ? 'recebido' : 'pago'}`} />
+                      )}
                       <span className="text-lg" aria-hidden>{categoryIcon(b.txs[0]?.category ?? (b.item.type === 'income' ? 'Receita' : b.item.type === 'investment' ? 'Investimento' : ''))}</span>
                       <button className="min-w-0 flex-1 text-left" onClick={() => setSheet(b)} title="Editar conta">
                         <p className={`truncate text-sm font-medium ${b.done ? 'text-ink-3 line-through' : ''}`}>{b.item.description}</p>
                         <p className={`text-xs ${b.bucket === 'overdue' ? 'text-bad' : 'text-ink-3'}`}>
                           {TYPE_LABELS[b.item.type]}
                           {b.dueDate && ` · vence ${new Date(`${b.dueDate}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`}
-                          {!b.recorded && ' · ainda não lançado'}
+                          {!b.recorded && (b.bucket === 'optional' ? ' · não lançado este mês' : ' · ainda não lançado')}
                         </p>
                       </button>
                       <span className={`num text-sm font-semibold ${b.recorded ? '' : 'text-ink-3'}`} title={b.recorded ? undefined : 'Valor esperado'}>
                         {b.recorded ? '' : '~'}{eur.format(b.amount)}
                       </span>
+                      {b.bucket === 'optional' && (
+                        <button className="btn px-3 py-1 text-xs" onClick={() => toggle(b)} title="Lança com o valor esperado; mude o valor no ✎">Lançar</button>
+                      )}
                       <button className="btn-ghost px-2 text-ink-3" onClick={() => setSheet(b)} aria-label={`Editar ${b.item.description}`}>✎</button>
                     </li>
                   ))}

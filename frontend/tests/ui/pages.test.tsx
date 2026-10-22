@@ -144,12 +144,23 @@ describe('Metas', () => {
 });
 
 describe('Comparar', () => {
-  const show = () => setup(<Compare year={2026} month={10} colors={chartColors('light')} />);
+  const onImport = vi.fn();
+  const show = () => setup(<Compare year={2026} month={10} colors={chartColors('light')} onImport={onImport} />);
+  beforeEach(() => onImport.mockClear());
 
-  it('asks for another year when there is only one', async () => {
+  it('asks for another year when there is only one, with its own import button', async () => {
     await seed({ txs: [{ month: 1, amount: 10 }] });
-    show();
+    const { user } = show();
     expect(await screen.findByText('Importe outro ano para comparar')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Importar outro ano/ }));
+    expect(onImport).toHaveBeenCalledOnce();
+  });
+
+  it('keeps an import button next to the comparison', async () => {
+    await seed({ txs: [{ year: 2025, month: 1, amount: 10 }, { year: 2026, month: 1, amount: 20 }] });
+    const { user } = show();
+    await user.click(await screen.findByRole('button', { name: /Importar ano/ }));
+    expect(onImport).toHaveBeenCalledOnce();
   });
 
   it('compares the same period by default, ignoring pending zero placeholders later in the year', async () => {

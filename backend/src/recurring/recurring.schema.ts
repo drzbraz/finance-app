@@ -10,6 +10,7 @@ export class RecurringRecord {
   @Prop({ type: Number }) dueDay?: number;
   @Prop({ type: Number }) expectedAmount?: number;
   @Prop({ type: Boolean }) active!: boolean;
+  @Prop({ type: Boolean }) optional?: boolean;
   @Prop({ type: Boolean }) removed?: boolean;
 }
 

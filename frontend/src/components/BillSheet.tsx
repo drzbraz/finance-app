@@ -1,6 +1,6 @@
 import { categorize, newId, parseLooseNumber, type RecurringItem, type Transaction, type TxType } from '@finance/shared';
 import { useState } from 'react';
-import { daysInMonth, isoDate, recurringKey, renameRecurringTxs, type Bill } from '../analytics/bills';
+import { daysInMonth, isOptional, isoDate, recurringKey, renameRecurringTxs, type Bill } from '../analytics/bills';
 import { useRules } from '../hooks';
 import { eur, MONTH_NAMES } from '../util';
 import { useToast } from './layout/Toast';
@@ -35,6 +35,9 @@ export default function BillSheet({ bill, year, month, txs, existingKeys, onClos
   const [amount, setAmount] = useState(item?.expectedAmount != null ? String(item.expectedAmount).replace('.', ',') : '');
   const [dueDay, setDueDay] = useState(item?.dueDay ? String(item.dueDay) : '');
   const [active, setActive] = useState(item?.active ?? true);
+  // null = the type's default (investments optional), until the box is touched.
+  const [optionalChoice, setOptionalChoice] = useState<boolean | null>(item?.optional ?? null);
+  const optional = isOptional({ type, optional: optionalChoice ?? undefined });
   // Amount of this month's recorded entry, when there is exactly one.
   const monthTx = bill?.txs.length === 1 ? bill.txs[0] : null;
   const [monthAmount, setMonthAmount] = useState(monthTx ? String(monthTx.amount).replace('.', ',') : '');
@@ -56,7 +59,7 @@ export default function BillSheet({ bill, year, month, txs, existingKeys, onClos
     const key = recurringKey(type, description);
     if (key !== item?.key && existingKeys.includes(key)) return setError('Já existe uma conta com esse nome.');
 
-    const next: RecurringItem = { key, type, description, dueDay: day, expectedAmount: value, active, removed: false };
+    const next: RecurringItem = { key, type, description, dueDay: day, expectedAmount: value, active, optional, removed: false };
     const renamed = item && key !== item.key ? renameRecurringTxs(txs, item, { type, description }) : [];
     await updateRecurring(item, next, renamed);
 
@@ -151,6 +154,13 @@ export default function BillSheet({ bill, year, month, txs, existingKeys, onClos
             Ativa (aparece todo mês e entra no “Iniciar mês”)
           </label>
         )}
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5" checked={optional} onChange={(e) => setOptionalChoice(e.target.checked)} />
+          <span>
+            Opcional
+            <span className="block text-xs text-ink-3">Só conta no mês em que você lançar: não fica atrasada, não entra no “Iniciar mês” nem é descontada do “Livre para gastar”.</span>
+          </span>
+        </label>
         {item && name.trim() && recurringKey(type, name.trim()) !== item.key && (
           <p className="rounded-xl bg-surface-2 p-3 text-xs text-ink-2">
             Os lançamentos de {year} com o nome “{item.description}” passam a se chamar “{name.trim()}”.

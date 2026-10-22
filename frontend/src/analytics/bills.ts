@@ -2,7 +2,8 @@ import { newId, type RecurringItem, type Transaction, type TxType } from '@finan
 import { round2 } from '../util';
 import { monthChecklist } from './checklist';
 
-export type BillBucket = 'overdue' | 'soon' | 'later' | 'done';
+/** 'optional': an optional line with nothing recorded this month (record it if you want). */
+export type BillBucket = 'overdue' | 'soon' | 'later' | 'optional' | 'done';
 
 export interface Bill {
   item: RecurringItem;
@@ -19,6 +20,12 @@ export interface Bill {
 export const SOON_DAYS = 7;
 
 export const recurringKey = (type: TxType, description: string) => `${type}|${description}`;
+
+/** Optional lines (investments unless set otherwise) only count in a month once recorded. */
+export const isOptional = (r: Pick<RecurringItem, 'type' | 'optional'>): boolean => r.optional ?? r.type === 'investment';
+
+/** Lines the month expects even before they are recorded: forecasts reserve them, "Iniciar mês" creates them. */
+export const isExpected = (r: RecurringItem): boolean => r.active && !isOptional(r);
 
 export function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -57,6 +64,7 @@ export function mergeRecurring(txs: Transaction[], stored: RecurringItem[], mont
       type: i.type,
       description: i.description,
       active: s?.active ?? true,
+      optional: s?.optional,
       dueDay: s?.dueDay,
       expectedAmount: s?.expectedAmount ?? lastAmount,
     });
@@ -95,11 +103,12 @@ export function billsForMonth(
     const dueDate = item.dueDay ? isoDate(year, month, Math.min(item.dueDay, daysInMonth(year, month))) : undefined;
     let bucket: BillBucket;
     if (done) bucket = 'done';
+    else if (!recorded && isOptional(item)) bucket = 'optional';
     else if (dueDate) bucket = dueDate < now ? 'overdue' : dueDate <= soonLimit ? 'soon' : 'later';
     else bucket = monthEnd < now ? 'overdue' : 'later';
     bills.push({ item, txs: inMonth, amount, recorded, done, dueDate, bucket });
   }
-  const order: Record<BillBucket, number> = { overdue: 0, soon: 1, later: 2, done: 3 };
+  const order: Record<BillBucket, number> = { overdue: 0, soon: 1, later: 2, optional: 3, done: 4 };
   return bills.sort((a, b) => order[a.bucket] - order[b.bucket] || (a.dueDate ?? '9').localeCompare(b.dueDate ?? '9'));
 }
 
@@ -120,12 +129,12 @@ export function upcomingBills(
 }
 
 /**
- * "Iniciar mês": a pending transaction for every active recurring item with nothing recorded
- * in `month` yet. Idempotent: running it again creates nothing.
+ * "Iniciar mês": a pending transaction for every expected recurring item (active, not optional)
+ * with nothing recorded in `month` yet. Idempotent: running it again creates nothing.
  */
 export function startMonthTxs(txs: Transaction[], recurring: RecurringItem[], year: number, month: number): Transaction[] {
   return recurring
-    .filter((r) => r.active && (r.expectedAmount ?? 0) > 0)
+    .filter((r) => isExpected(r) && (r.expectedAmount ?? 0) > 0)
     .filter((r) => !txs.some((t) => t.year === year && t.month === month && t.type === r.type && t.description === r.description))
     .map((r) => ({
       id: newId(),

@@ -60,6 +60,40 @@ describe('App shell', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('⌥N / Alt+N opens Novo lançamento from anywhere, even while typing; so does ⌘N when the browser allows', async () => {
+    const { user } = show();
+    await screen.findByText('Nada em 2026 ainda');
+    await user.click(within(sidebar()).getByRole('button', { name: /Transações/ }));
+    await user.click(await screen.findByPlaceholderText(/Buscar/));
+    fireEvent.keyDown(window, { key: '˜', code: 'KeyN', altKey: true });
+    expect(await screen.findByRole('dialog', { name: 'Novo lançamento' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    fireEvent.keyDown(window, { key: 'n', code: 'KeyN', metaKey: true });
+    expect(await screen.findByRole('dialog', { name: 'Novo lançamento' })).toBeInTheDocument();
+  });
+
+  it('Importar and Exportar are in the top bar only on Configurações', async () => {
+    const { user } = show();
+    await screen.findByText('Nada em 2026 ainda');
+    const topbar = () => within(screen.getByRole('banner'));
+    expect(topbar().queryByRole('button', { name: 'Importar' })).not.toBeInTheDocument();
+    expect(topbar().queryByRole('button', { name: /Exportar/ })).not.toBeInTheDocument();
+    await user.click(within(sidebar()).getByRole('button', { name: /Configurações/ }));
+    expect(topbar().getByRole('button', { name: 'Importar' })).toBeInTheDocument();
+    expect(topbar().getAllByRole('button', { name: /Exportar|⬇︎/ }).length).toBeGreaterThan(0);
+  });
+
+  it('importing another year from Comparar stays on Comparar, on the year being compared', async () => {
+    await seed({ txs: [{ month: 1, amount: 10 }] });
+    const { user } = show();
+    await user.click(within(sidebar()).getByRole('button', { name: /Comparar/ }));
+    await user.click(await screen.findByRole('button', { name: /Importar outro ano/ }));
+    await user.upload(document.querySelector<HTMLInputElement>('input[type=file]')!, new File([await buildWorkbook()], 'Controle financeiro 2025.xlsx'));
+    await user.click(await screen.findByRole('button', { name: 'Importar 2025' }));
+    expect(await screen.findByRole('heading', { name: '2025 vs 2026' })).toBeInTheDocument();
+    expect(yearSelect()).toHaveValue('2026');
+  });
+
   it('a new entry shows up on Início right after saving', async () => {
     const { user } = show();
     await screen.findByText('Nada em 2026 ainda');

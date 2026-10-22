@@ -1,9 +1,10 @@
-import { categorize, extractTags, newId, parseLooseNumber, TYPE_LABELS, type Transaction, type TxType } from '@finance/shared';
+import { categorize, extractTags, newId, parseLooseNumber, splitShare, TYPE_LABELS, type Transaction, type TxType } from '@finance/shared';
 import { useMemo, useRef, useState } from 'react';
 import { categoryIcon } from '../categories';
 import { useCategories, useRules } from '../hooks';
 import { eur, fallbackDescription } from '../util';
 import { useToast } from './layout/Toast';
+import SplitFields from './SplitFields';
 import { Modal, Segmented } from './ui';
 import { saveTransaction, deleteTransaction } from '../api/repo';
 
@@ -34,7 +35,8 @@ function defaultDate(year: number, month: number): string {
 /**
  * Keyboard-first entry: amount, description (autocompleted from history, category suggested
  * live by the rules), type, date. Enter saves; ⌘/Ctrl+Enter saves and keeps the dialog open.
- * Typing "25 jantar #lisboa" in the description also fills the amount.
+ * Typing "25 jantar #lisboa" in the description also fills the amount. A Splitwise split keeps
+ * only my share: the amount typed is then what I paid for everyone.
  */
 export default function QuickAdd({ year, month, history, onClose }: Props) {
   const rules = useRules();
@@ -49,6 +51,7 @@ export default function QuickAdd({ year, month, history, onClose }: Props) {
   const [date, setDate] = useState(defaultDate(year, month));
   const [category, setCategory] = useState<string | null>(null); // null = follow suggestion
   const [paid, setPaid] = useState<boolean | null>(null); // null = default for type
+  const [splitPeople, setSplitPeople] = useState<number | null>(null); // null = not split
   const [error, setError] = useState('');
 
   // Latest use of each description, for autocomplete and for prefilling type/category.
@@ -60,7 +63,10 @@ export default function QuickAdd({ year, month, history, onClose }: Props) {
     return m;
   }, [history]);
 
-  const amount = parseLooseNumber(amountText);
+  const typed = parseLooseNumber(amountText);
+  const splittable = type !== 'income' && type !== 'investment';
+  const split = splittable && splitPeople !== null && typed !== null && typed > 0 ? { people: splitPeople, total: typed } : undefined;
+  const amount = split ? splitShare(split.total, split.people) : typed;
   // "#tags" become tags; the description keeps just the words.
   const cleanDescription = description.replace(/#[\p{L}\p{N}_-]+/gu, '').replace(/\s+/g, ' ').trim();
   const draft: Transaction = {
@@ -74,7 +80,8 @@ export default function QuickAdd({ year, month, history, onClose }: Props) {
     category: '',
     categorySource: 'auto',
     tags: extractTags(description),
-    paid: paid ?? (type === 'variable' || type === 'additional'),
+    paid: split ? true : paid ?? (type === 'variable' || type === 'additional'),
+    ...(split && { split }),
   };
   // Without a description the category falls back to the type's default (e.g. Outros).
   const suggested = categorize(draft, rules).category;
@@ -114,6 +121,7 @@ export default function QuickAdd({ year, month, history, onClose }: Props) {
       setAmountText('');
       setDescription('');
       setCategory(null);
+      setSplitPeople(null);
       setError('');
       amountRef.current?.focus();
     } else onClose();
@@ -130,7 +138,7 @@ export default function QuickAdd({ year, month, history, onClose }: Props) {
     <Modal title="Novo lançamento" onClose={onClose}>
       <div className="space-y-4" onKeyDown={onKeyDown}>
         <label className="block">
-          <span className="label">Valor</span>
+          <span className="label">{splitPeople !== null && splittable ? 'Valor total pago' : 'Valor'}</span>
           <div className="mt-1 flex items-baseline gap-2 rounded-2xl border border-line bg-surface-2 px-4 py-3 focus-within:border-accent">
             <span className="text-2xl text-ink-3">€</span>
             <input
@@ -199,10 +207,14 @@ export default function QuickAdd({ year, month, history, onClose }: Props) {
           </label>
         </div>
 
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" className="h-4 w-4 accent-[rgb(var(--accent))]" checked={draft.paid} onChange={(e) => setPaid(e.target.checked)} />
-          {type === 'income' ? 'Já recebido' : 'Já pago'}
-        </label>
+        {splittable && <SplitFields people={splitPeople} total={typed} onChange={setSplitPeople} />}
+
+        {!split && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="h-4 w-4 accent-[rgb(var(--accent))]" checked={draft.paid} onChange={(e) => setPaid(e.target.checked)} />
+            {type === 'income' ? 'Já recebido' : 'Já pago'}
+          </label>
+        )}
 
         {error && <p className="text-sm text-bad" role="alert">{error}</p>}
 

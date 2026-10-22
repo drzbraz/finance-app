@@ -3,12 +3,13 @@ import { useMemo, useState } from 'react';
 import { cumulative, saldo, totalsByType } from '../analytics/aggregate';
 import { mergeRecurring, upcomingBills } from '../analytics/bills';
 import { budgetStatus } from '../analytics/budgets';
+import { monthPace, moneyFlow } from '../analytics/flow';
 import { freeToSpend } from '../analytics/free';
 import { goalStatus } from '../analytics/goals';
 import { forecastMonth, insights, type InsightTone } from '../analytics/insights';
 import { byCategory, savingsRate, savingsRateYTD, topExpenses } from '../analytics/metrics';
 import { categoryIcon } from '../categories';
-import { CategoryBars, CumulativeChart, SavingsRateChart, SpendStackChart, type MonthRow } from '../components/charts';
+import { CategoryBars, CumulativeChart, MoneyFlowChart, PaceChart, SavingsRateChart, SpendStackChart, type MonthRow } from '../components/charts';
 import type { PageId } from '../components/layout/nav';
 import { EmptyState, PaidCheck, ProgressBar } from '../components/ui';
 import { useBudgets, useGoals, useSettings, useStoredRecurring, useToday, useYearTransactions } from '../hooks';
@@ -86,6 +87,8 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
   const mainGoal = goals[0] ? goalStatus(goals[0], settings, t, today) : null;
   const cats = byCategory(txs, catScope === 'month' ? month : undefined).slice(0, 8);
   const top = topExpenses(txs, month);
+  const pace = monthPace(txs, year, month, today);
+  const flow = moneyFlow(txs, month);
   const recent = [...txs].sort((a, b) => (b.updatedAt ?? b.date ?? '').localeCompare(a.updatedAt ?? a.date ?? '')).slice(0, 5);
 
   if (txs.length === 0) {
@@ -188,7 +191,7 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
             </li>
           </ul>
           <p className="mt-2 text-xs text-ink-3">
-            Inclui as contas, receitas e investimentos recorrentes que ainda não foram lançados neste mês, pelo valor esperado (veja em Contas).
+            Inclui as contas, receitas e investimentos recorrentes que ainda não foram lançados neste mês, pelo valor esperado, menos os marcados como opcionais (veja em Contas).
             {free.groceryReserveSource !== 'budget' && ' Para reservar um valor fixo de mercado, defina um limite para Mercado em Contas → Limites de gasto.'}
           </p>
         </section>
@@ -252,6 +255,30 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
           )}
         </Section>
       </div>
+
+      <Section title="Ritmo do mês · gastos do dia a dia">
+        <p className="-mt-1 mb-2 text-sm text-ink-2">
+          {pace.aheadBy === null
+            ? 'Variáveis e adicionais acumulados no mês. Com meses anteriores lançados, aparece a comparação com o seu mês típico.'
+            : Math.abs(pace.aheadBy) < 1
+              ? `No ritmo de sempre ${pace.isCurrent ? 'até hoje' : 'neste mês'}.`
+              : pace.aheadBy > 0
+                ? `${eur.format(pace.aheadBy)} acima do seu mês típico ${pace.isCurrent ? 'até hoje' : 'no fim do mês'}.`
+                : `${eur.format(-pace.aheadBy)} abaixo do seu mês típico ${pace.isCurrent ? 'até hoje' : 'no fim do mês'}.`}
+        </p>
+        <PaceChart data={pace.days} today={pace.isCurrent ? today.getDate() : null} colors={colors} />
+      </Section>
+
+      {flow && (
+        <Section title={`Fluxo do dinheiro · ${MONTH_NAMES[month - 1]}`}>
+          <p className="-mt-1 mb-2 text-sm text-ink-2">
+            {flow.deficit > 0
+              ? `Gastos e investimentos passaram a receita em ${eur.format(flow.deficit)}.`
+              : `Da receita de ${eur.format(flow.income)}, sobraram ${eur.format(flow.leftOver)}.`}
+          </p>
+          <MoneyFlowChart flow={flow} colors={colors} />
+        </Section>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title="Para onde foi o dinheiro">

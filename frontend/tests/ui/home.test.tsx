@@ -41,6 +41,16 @@ describe('Início', () => {
     expect(onAdd).toHaveBeenCalledOnce();
   });
 
+  it('shows the month\'s pace against the typical month and where the money went', async () => {
+    await seed({ txs: [...OCT, ...SEPT] });
+    show();
+    // September: 400 of groceries over 30 days; by the 22nd that is 293,33 vs 150 spent.
+    expect(await screen.findByText('Ritmo do mês · gastos do dia a dia')).toBeInTheDocument();
+    expect(screen.getByText(/143,33\s€ abaixo do seu mês típico até hoje/)).toBeInTheDocument();
+    expect(screen.getByText('Fluxo do dinheiro · Outubro')).toBeInTheDocument();
+    expect(screen.getByText(/Da receita de 2200,00\s€, sobraram 1050,00\s€/)).toBeInTheDocument();
+  });
+
   it('"Livre para gastar" = income − fixed − investments − groceries reserve − other spending', async () => {
     await seed({ txs: [...OCT, ...SEPT], budgets: [{ category: 'Mercado', monthlyLimit: 250 }], recurring: [{ key: 'fixed|Aluguel', type: 'fixed', description: 'Aluguel', dueDay: 25, active: true }] });
     const { user } = show();

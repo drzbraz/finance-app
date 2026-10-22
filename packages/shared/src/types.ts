@@ -37,6 +37,15 @@ export interface Transaction {
   updatedAt?: string;
   /** Created by "Iniciar mês" (so it can be undone later). */
   origin?: 'start-month';
+  /** Paid for a group and split on Splitwise: `amount` is only my share of `split.total`. */
+  split?: Split;
+}
+
+export interface Split {
+  /** Everyone who shared it, me included (2 or more). */
+  people: number;
+  /** What I actually paid. */
+  total: number;
 }
 
 export interface CategoryRule {
@@ -91,6 +100,11 @@ export interface RecurringItem {
   dueDay?: number; // 1-31
   expectedAmount?: number;
   active: boolean;
+  /**
+   * Only counts in a month once recorded: never overdue, not created by "Iniciar mês", not
+   * reserved in the forecasts. Unset = optional for investments, expected for the rest.
+   */
+  optional?: boolean;
   /** Deleted from Contas: hidden even though past transactions still carry its name. */
   removed?: boolean;
 }

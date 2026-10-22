@@ -37,7 +37,8 @@ function Main() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [adding, setAdding] = useState(false);
-  const [importing, setImporting] = useState<{ file: File | null } | null>(null);
+  // `stay`: importing another year from Comparar keeps you there, on the year you were comparing.
+  const [importing, setImporting] = useState<{ file: File | null; stay?: boolean } | null>(null);
   const [dragging, setDragging] = useState(false);
   const history = useYearTransactions(year);
 
@@ -47,10 +48,15 @@ function Main() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [years]);
 
-  // "N" opens Quick Add from anywhere.
+  // ⌥N / Alt+N opens Quick Add from anywhere, even while typing; so does ⌘N / Ctrl+N where the
+  // browser lets the page have it (most keep it for "new window"). Plain "N" works outside fields.
+  // e.code, not e.key: on a Mac ⌥N types "˜".
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTyping(e) && !adding && !importing) {
+      if (e.code !== 'KeyN' || e.shiftKey || adding || importing) return;
+      const mod = e.altKey || e.metaKey || e.ctrlKey;
+      const plain = !e.altKey && !e.metaKey && !e.ctrlKey && !isTyping(e);
+      if (mod || plain) {
         e.preventDefault();
         setAdding(true);
       }
@@ -117,7 +123,7 @@ function Main() {
       {page === 'bills' && <Bills year={year} month={month} />}
       {page === 'budgets' && <Budgets year={year} month={month} />}
       {page === 'goals' && <Goals year={year} />}
-      {page === 'compare' && <Compare year={year} month={month} colors={colors} />}
+      {page === 'compare' && <Compare year={year} month={month} colors={colors} onImport={() => setImporting({ file: null, stay: true })} />}
       {page === 'settings' && <SettingsPage />}
 
       {adding && <QuickAdd year={year} month={month} history={history} onClose={() => setAdding(false)} />}
@@ -126,6 +132,7 @@ function Main() {
           initialFile={importing.file}
           onClose={() => setImporting(null)}
           onImported={(y) => {
+            if (importing.stay) return;
             setYear(y);
             setPage('home');
           }}

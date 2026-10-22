@@ -162,6 +162,26 @@ describe('Novo lançamento (QuickAdd)', () => {
     await waitFor(async () => expect(await liveTxs()).toHaveLength(0));
   });
 
+  it('"Paguei e dividi no Splitwise" keeps only my share, with what I paid and for how many', async () => {
+    const { user, amount, description } = open();
+    await user.type(amount, '90');
+    await user.type(description, 'jantar');
+    await user.click(screen.getByRole('checkbox', { name: 'Paguei e dividi no Splitwise' }));
+    expect(screen.getByText('Valor total pago')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Já pago' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Mais uma pessoa' }));
+    expect(screen.getByRole('spinbutton', { name: 'Pessoas' })).toHaveValue(3);
+    expect(screen.getByText(/Sua parte:/)).toHaveTextContent(/Sua parte: 30,00\s€ de 90,00\s€/);
+    await user.click(screen.getByRole('button', { name: /^Salvar 30,00/ }));
+    expect(await saved()).toMatchObject({ amount: 30, split: { people: 3, total: 90 }, paid: true });
+  });
+
+  it('income and investments cannot be split', async () => {
+    const { user } = open();
+    await user.click(screen.getByRole('radio', { name: 'Receita' }));
+    expect(screen.queryByRole('checkbox', { name: /Splitwise/ })).not.toBeInTheDocument();
+  });
+
   it('Esc closes without saving', async () => {
     const { user, amount, onClose } = open();
     await user.type(amount, '5');

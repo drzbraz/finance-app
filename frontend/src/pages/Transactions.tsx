@@ -99,6 +99,7 @@ export default function Transactions({ year, month, onAdd }: { year: number; mon
                         <p className="truncate text-xs text-ink-3">
                           {t.category} · {TYPE_LABELS[t.type]}
                           {t.tags.map((x) => ` #${x}`).join('')}
+                          {t.split && ` · Splitwise ÷${t.split.people} de ${eur.format(t.split.total)}`}
                         </p>
                       </div>
                       <span className={`num text-sm font-semibold ${t.type === 'income' ? 'text-good' : ''}`}>

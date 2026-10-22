@@ -2,7 +2,6 @@
 export const keys = {
   transactions: (year: number) => `transactions:${year}`,
   years: 'years',
-  yearStatus: (year: number) => `year-status:${year}`,
   rules: 'rules',
   settings: 'settings',
   budgets: 'budgets',
@@ -11,5 +10,4 @@ export const keys = {
 } as const;
 
 export const TRANSACTIONS = 'transactions:';
-export const YEAR_STATUS = 'year-status:';
 export const EVERYTHING = '';

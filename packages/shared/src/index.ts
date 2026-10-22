@@ -1,5 +1,6 @@
 export * from './types.js';
 export * from './ids.js';
+export * from './split.js';
 export * from './text/color.js';
 export * from './text/normalize.js';
 export * from './text/numbers.js';

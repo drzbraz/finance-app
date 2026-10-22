@@ -10,6 +10,7 @@ export class RecurringItemDto implements RecurringItem {
   @IsOptional() @IsInt() @Min(1) @Max(31) dueDay?: number;
   @IsOptional() @IsNumber() expectedAmount?: number;
   @IsBoolean() active!: boolean;
+  @IsOptional() @IsBoolean() optional?: boolean;
   @IsOptional() @IsBoolean() removed?: boolean;
 }
 

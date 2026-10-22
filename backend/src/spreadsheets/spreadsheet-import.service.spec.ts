@@ -101,6 +101,17 @@ describe('SpreadsheetImportService', () => {
       expect(saved().find((t) => t.id === 'imp-2026-D15')).toMatchObject({ category: 'Lazer', categorySource: 'manual', tags: ['mine'] });
     });
 
+    it('keeps a Splitwise split while the cell still holds my share', async () => {
+      const share = (await service.preview(file)).result.transactions.find((t) => t.id === 'imp-2026-D15')!.amount;
+      transactions.findByYear.mockResolvedValue([
+        tx({ id: 'imp-2026-D15', amount: share, split: { people: 2, total: share * 2 } }),
+        tx({ id: 'imp-2026-D16', amount: -1, split: { people: 3, total: 9 } }),
+      ]);
+      await service.import(2026, file);
+      expect(saved().find((t) => t.id === 'imp-2026-D15')?.split).toEqual({ people: 2, total: share * 2 });
+      expect(saved().find((t) => t.id === 'imp-2026-D16')?.split).toBeUndefined();
+    });
+
     it('applies the rules to the other rows', async () => {
       await service.import(2026, file);
       expect(saved().find((t) => t.id === 'imp-2026-D15')!.category).toBe('Transporte');

@@ -9,7 +9,6 @@ import {
   fetchSettings,
   fetchTransactions,
   fetchYears,
-  getYearStatus,
 } from './api/repo';
 import { useQuery } from './api/store';
 
@@ -48,11 +47,6 @@ export function useGoals(): Goal[] {
 
 export function useStoredRecurring(): RecurringItem[] {
   return useQuery(keys.recurring, fetchRecurring) ?? NONE;
-}
-
-/** Changes made in the app since the year's last xlsx export (or import). */
-export function useUnexported(year: number): number {
-  return useQuery(keys.yearStatus(year), () => getYearStatus(year))?.unexportedCount ?? 0;
 }
 
 export function useCategories(rules: CategoryRule[], txs: Transaction[]): string[] {

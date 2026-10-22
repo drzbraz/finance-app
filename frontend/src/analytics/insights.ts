@@ -1,7 +1,7 @@
 import type { Budget, RecurringItem, Settings, Transaction } from '@finance/shared';
 import { eur, pct, round2 } from '../util';
 import { totalsByType } from './aggregate';
-import { billsForMonth, daysInMonth } from './bills';
+import { billsForMonth, daysInMonth, isExpected } from './bills';
 import { budgetStatus } from './budgets';
 import { categoryDeviation, isExpense, savingsRate } from './metrics';
 
@@ -43,8 +43,8 @@ export function typicalDailyFlexible(txs: Transaction[], year: number, month: nu
  * Month-end projection. Variable and additional spending = what is already spent + the typical
  * daily spend (from earlier months) for the days left, so one big one-off (a dentist bill) is
  * not multiplied by the rest of the month. Without history it falls back to this month's pace.
- * Fixed bills, income and investments use what is recorded plus the expected amount of active
- * recurring items not recorded yet.
+ * Fixed bills, income and investments use what is recorded plus the expected amount of the
+ * recurring items the month expects (active, not optional) that are not recorded yet.
  */
 export function forecastMonth(
   txs: Transaction[],
@@ -80,7 +80,7 @@ export function forecastMonth(
   const flexible = sum((t) => t.type === 'variable' || t.type === 'additional');
   const fixed = sum((t) => t.type === 'fixed');
   const missing = recurring.filter(
-    (r) => r.active && !inMonth.some((t) => t.type === r.type && t.description === r.description),
+    (r) => isExpected(r) && !inMonth.some((t) => t.type === r.type && t.description === r.description),
   );
   const expected = (type: string) => missing.filter((r) => r.type === type).reduce((a, r) => a + (r.expectedAmount ?? 0), 0);
 

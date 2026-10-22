@@ -82,7 +82,7 @@ export default function SettingsPage() {
 
           <section className="card">
             <h2 className="mb-3 text-sm font-semibold">Dados</h2>
-            <p className="mb-3 text-xs text-ink-3">🔒 Tudo fica no banco de dados local do app (Docker, no seu computador). Use Exportar → Backup .json para guardar uma cópia; restaure arrastando o .json para a janela.</p>
+            <p className="mb-3 text-xs text-ink-3">🔒 Tudo fica no banco de dados local do app (Docker, no seu computador). Use Exportar (no topo desta página) → Backup .json para guardar uma cópia; restaure arrastando o .json para a janela.</p>
             <ul className="divide-y divide-line text-sm">
               {years.map((y) => (
                 <li key={y} className="flex items-center justify-between gap-2 py-2">

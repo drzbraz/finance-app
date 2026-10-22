@@ -1,10 +1,16 @@
-import { TX_TYPES, type CellRef, type TxType } from '@finance/shared';
+import { TX_TYPES, type CellRef, type Split, type TxType } from '@finance/shared';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
 @Schema({ _id: false })
 class CellRefRecord implements CellRef {
   @Prop({ type: String }) sheet!: string;
   @Prop({ type: String }) cell!: string;
+}
+
+@Schema({ _id: false })
+class SplitRecord implements Split {
+  @Prop({ type: Number }) people!: number;
+  @Prop({ type: Number }) total!: number;
 }
 
 /** A transaction; `_id` is its id ("imp-2026-B15" for imported cells). */
@@ -27,6 +33,7 @@ export class TransactionRecord {
   @Prop({ type: Boolean }) deleted?: boolean;
   @Prop({ type: String }) updatedAt?: string;
   @Prop({ type: String, enum: ['start-month'] }) origin?: 'start-month';
+  @Prop({ type: SchemaFactory.createForClass(SplitRecord) }) split?: Split;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(TransactionRecord);

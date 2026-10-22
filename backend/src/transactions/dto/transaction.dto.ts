@@ -1,4 +1,4 @@
-import { TX_TYPES, type CellRef, type Transaction, type TxType } from '@finance/shared';
+import { TX_TYPES, type CellRef, type Split, type Transaction, type TxType } from '@finance/shared';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -21,6 +21,11 @@ export class CellRefDto implements CellRef {
   @Matches(CELL_ADDRESS) cell!: string;
 }
 
+export class SplitDto implements Split {
+  @IsInt() @Min(2) @Max(100) people!: number;
+  @IsNumber({ allowNaN: false, allowInfinity: false }) @Min(0) total!: number;
+}
+
 export class TransactionDto implements Transaction {
   @IsString() @IsNotEmpty() id!: string;
   @IsInt() year!: number;
@@ -39,6 +44,7 @@ export class TransactionDto implements Transaction {
   @IsOptional() @IsBoolean() deleted?: boolean;
   @IsOptional() @IsString() updatedAt?: string;
   @IsOptional() @IsIn(['start-month']) origin?: 'start-month';
+  @IsOptional() @ValidateNested() @Type(() => SplitDto) split?: SplitDto;
 }
 
 export class TransactionsDto {

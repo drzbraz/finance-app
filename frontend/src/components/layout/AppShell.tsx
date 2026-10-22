@@ -27,7 +27,7 @@ export default function AppShell({ page, onPage, year, month, years, onMonth, th
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-accent-ink">€</span>
           <span className="text-lg font-bold">Finanças</span>
         </div>
-        <button className="btn-primary mb-4 w-full py-2.5" onClick={onAdd} title="Atalho: N">
+        <button className="btn-primary mb-4 w-full py-2.5" onClick={onAdd} title="Atalho: ⌥N (ou N fora de um campo)">
           + Novo lançamento
         </button>
         <nav className="flex flex-col gap-0.5" aria-label="Principal">
@@ -53,12 +53,17 @@ export default function AppShell({ page, onPage, year, month, years, onMonth, th
           <MonthSwitcher year={year} month={month} years={years} onChange={onMonth} />
           <div className="ml-auto flex items-center gap-1.5">
             <ThemeToggle pref={theme} />
-            <button className="btn" onClick={onImport} aria-label="Importar" title="Importar (ou arraste o arquivo para qualquer lugar da tela)">
-              <span aria-hidden>⬆︎</span>
-              <span className="hidden sm:inline">Importar</span>
-            </button>
-            <div className="hidden sm:block"><ExportMenu year={year} /></div>
-            <div className="sm:hidden"><ExportMenu year={year} compact /></div>
+            {/* Import/export live with the data settings; Comparar and the empty Início have their own import. */}
+            {page === 'settings' && (
+              <>
+                <button className="btn" onClick={onImport} aria-label="Importar" title="Importar (ou arraste o arquivo para qualquer lugar da tela)">
+                  <span aria-hidden>⬆︎</span>
+                  <span className="hidden sm:inline">Importar</span>
+                </button>
+                <div className="hidden sm:block"><ExportMenu year={year} /></div>
+                <div className="sm:hidden"><ExportMenu year={year} compact /></div>
+              </>
+            )}
             <button className="btn-primary hidden sm:inline-flex lg:hidden" onClick={onAdd}>+ Novo</button>
           </div>
         </div>

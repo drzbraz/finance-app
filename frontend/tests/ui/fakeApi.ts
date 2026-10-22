@@ -158,10 +158,12 @@ async function preview(data: Buffer, fileName: string, year?: number) {
 
 async function importYear(year: number, data: Buffer, fileName: string) {
   const result = await parse(data, fileName, year);
-  const manual = new Map(db.transactions.all().filter((t) => t.year === year && t.categorySource === 'manual').map((t) => [t.id, t]));
+  const current = new Map(db.transactions.all().filter((t) => t.year === year).map((t) => [t.id, t]));
   const incoming = result.transactions.map((t) => {
-    const prev = manual.get(t.id);
-    return prev ? { ...t, category: prev.category, categorySource: 'manual' as const, tags: [...new Set([...t.tags, ...prev.tags])] } : t;
+    const prev = current.get(t.id);
+    if (!prev) return t;
+    const kept = prev.split && prev.amount === t.amount ? { ...t, split: prev.split } : t;
+    return prev.categorySource === 'manual' ? { ...kept, category: prev.category, categorySource: 'manual' as const, tags: [...new Set([...t.tags, ...prev.tags])] } : kept;
   });
   for (const t of db.transactions.all()) if (t.year === year && t.source) db.transactions.rows.delete(t.id);
   for (const t of applyRules(incoming, db.rules.all())) db.transactions.rows.set(t.id, t);

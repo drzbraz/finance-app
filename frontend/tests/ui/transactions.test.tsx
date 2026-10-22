@@ -184,6 +184,24 @@ describe('Transações', () => {
       await waitFor(() => expect(screen.queryByText('Aluguel')).not.toBeInTheDocument());
     });
 
+    it('a split entry is edited by what I paid; changing people recomputes my share, and it can be un-split', async () => {
+      await db.transactions.put({ ...(await db.transactions.get('a'))!, amount: 15, split: { people: 2, total: 30 } });
+      const { user } = show();
+      expect(await screen.findByText(/Splitwise ÷2 de 30,00/)).toBeInTheDocument();
+      await user.click(screen.getByText('jantar sushi'));
+      expect(screen.getByDisplayValue('30')).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'Paguei e dividi no Splitwise' })).toBeChecked();
+      await user.click(screen.getByRole('button', { name: 'Mais uma pessoa' }));
+      await user.click(screen.getByRole('button', { name: 'Salvar' }));
+      await waitFor(async () => expect(await db.transactions.get('a')).toMatchObject({ amount: 10, split: { people: 3, total: 30 } }));
+
+      await user.click(await screen.findByText('jantar sushi'));
+      await user.click(screen.getByRole('checkbox', { name: 'Paguei e dividi no Splitwise' }));
+      await user.click(screen.getByRole('button', { name: 'Salvar' }));
+      await waitFor(async () => expect((await db.transactions.get('a'))?.amount).toBe(30));
+      expect((await db.transactions.get('a'))?.split).toBeUndefined();
+    });
+
     it('the paid flag can still be changed in the panel', async () => {
       const { user } = show();
       await user.click(await screen.findByText('Aluguel'));

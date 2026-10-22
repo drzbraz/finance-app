@@ -18,7 +18,7 @@ function Delta({ delta, deltaPct, inverse = false }: { delta: number; deltaPct: 
   );
 }
 
-export default function Compare({ year, month, colors }: { year: number; month: number; colors: ChartColors }) {
+export default function Compare({ year, month, colors, onImport }: { year: number; month: number; colors: ChartColors; onImport: () => void }) {
   const years = useYears() ?? [];
   const older = years.filter((y) => y < year);
   const [base, setBase] = useState<number | null>(null);
@@ -32,7 +32,14 @@ export default function Compare({ year, month, colors }: { year: number; month: 
   const [scope, setScope] = useState<'same' | 'full'>('same');
 
   if (!a) {
-    return <EmptyState icon="📊" title="Importe outro ano para comparar" text={`Você está vendo ${year}. Importe a planilha de um ano anterior (ex.: ${year - 1}) para ver a comparação.`} />;
+    return (
+      <EmptyState
+        icon="📊"
+        title="Importe outro ano para comparar"
+        text={`Você está vendo ${year}. Importe a planilha de um ano anterior (ex.: ${year - 1}) para ver a comparação.`}
+        action={<button className="btn-primary" onClick={onImport}>⬆︎ Importar outro ano</button>}
+      />
+    );
   }
 
   const upTo = scope === 'same' ? Math.max(1, lastB || month) : 12;
@@ -52,6 +59,7 @@ export default function Compare({ year, month, colors }: { year: number; month: 
               </select>
             )}
             <Segmented label="Período" value={scope} onChange={setScope} options={[{ value: 'same', label: 'Mesmo período' }, { value: 'full', label: 'Ano todo' }]} />
+            <button className="btn" onClick={onImport} title="Importar a planilha de outro ano">⬆︎ Importar ano</button>
           </div>
         }
       />

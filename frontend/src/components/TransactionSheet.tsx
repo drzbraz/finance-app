@@ -1,10 +1,11 @@
-import { categorize, extractTags, parseLooseNumber, TX_TYPES, TYPE_LABELS, type Transaction, type TxType } from '@finance/shared';
+import { categorize, extractTags, parseLooseNumber, splitShare, TX_TYPES, TYPE_LABELS, type Transaction, type TxType } from '@finance/shared';
 import { useState } from 'react';
 import { categoryIcon } from '../categories';
 import { useCategories, useRules } from '../hooks';
 import { fallbackDescription, MONTH_NAMES } from '../util';
 import { useToast } from './layout/Toast';
 import RulePrompt from './RulePrompt';
+import SplitFields from './SplitFields';
 import { Sheet } from './ui';
 import { deleteTransaction, restoreTransaction, saveTransaction } from '../api/repo';
 
@@ -14,14 +15,26 @@ export default function TransactionSheet({ tx, history, onClose }: { tx: Transac
   const categories = useCategories(rules, history);
   const toast = useToast();
   const [draft, setDraft] = useState(tx);
-  const [amountText, setAmountText] = useState(String(tx.amount).replace('.', ','));
+  // A split entry is edited by what I paid; only my share is stored as the amount.
+  const [amountText, setAmountText] = useState(String(tx.split?.total ?? tx.amount).replace('.', ','));
+  const [splitPeople, setSplitPeople] = useState<number | null>(tx.split?.people ?? null);
   const [prompt, setPrompt] = useState<{ description: string; category: string } | null>(null);
   const set = (patch: Partial<Transaction>) => setDraft((d) => ({ ...d, ...patch }));
+  const splittable = draft.type !== 'income' && draft.type !== 'investment';
 
   const save = async () => {
-    const amount = parseLooseNumber(amountText);
-    if (amount === null) return;
-    let next: Transaction = { ...draft, description: draft.description.trim(), amount, tags: [...new Set([...draft.tags, ...extractTags(draft.description)])] };
+    const typed = parseLooseNumber(amountText);
+    if (typed === null) return;
+    const split = splittable && splitPeople !== null && typed > 0 ? { people: splitPeople, total: typed } : undefined;
+    // Saving replaces the whole entry, so `split: undefined` (dropped from the JSON) un-splits it.
+    let next: Transaction = {
+      ...draft,
+      description: draft.description.trim(),
+      amount: split ? splitShare(split.total, split.people) : typed,
+      tags: [...new Set([...draft.tags, ...extractTags(draft.description)])],
+      split,
+      ...(split && { paid: true }),
+    };
     if (next.categorySource === 'auto' && next.description !== tx.description) next = categorize(next, rules);
     if (!next.description) next = { ...next, description: fallbackDescription(next.type, next.category) };
     await saveTransaction(next);
@@ -40,7 +53,7 @@ export default function TransactionSheet({ tx, history, onClose }: { tx: Transac
     <Sheet title="Editar lançamento" onClose={onClose}>
       <div className="space-y-4">
         <label className="block">
-          <span className="label">Valor (€)</span>
+          <span className="label">{splittable && splitPeople !== null ? 'Valor total pago (€)' : 'Valor (€)'}</span>
           <input className="input num mt-1 text-xl font-semibold" inputMode="decimal" value={amountText} onChange={(e) => setAmountText(e.target.value)} />
         </label>
         <label className="block">
@@ -92,10 +105,13 @@ export default function TransactionSheet({ tx, history, onClose }: { tx: Transac
             onChange={(e) => set({ tags: [...new Set(e.target.value.split(/[\s,]+/).map((x) => x.replace(/^#/, '').toLowerCase()).filter(Boolean))] })}
           />
         </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" className="h-4 w-4" checked={draft.paid} onChange={(e) => set({ paid: e.target.checked })} />
-          {draft.type === 'income' ? 'Recebido' : 'Pago'}
-        </label>
+        {splittable && <SplitFields people={splitPeople} total={parseLooseNumber(amountText)} onChange={setSplitPeople} />}
+        {!(splittable && splitPeople !== null) && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="h-4 w-4" checked={draft.paid} onChange={(e) => set({ paid: e.target.checked })} />
+            {draft.type === 'income' ? 'Recebido' : 'Pago'}
+          </label>
+        )}
         {tx.source && <p className="text-xs text-ink-3">Veio da planilha, célula {tx.source.cell}.</p>}
         <div className="flex justify-between gap-2 pt-2">
           <button className="btn text-bad" onClick={remove}>Excluir</button>

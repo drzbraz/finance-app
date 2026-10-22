@@ -1,6 +1,6 @@
 import type { Budget, RecurringItem, Transaction } from '@finance/shared';
 import { round2 } from '../util';
-import { daysInMonth } from './bills';
+import { daysInMonth, isExpected } from './bills';
 
 export const GROCERY_CATEGORY = 'Mercado';
 
@@ -45,8 +45,8 @@ export function groceryReserve(txs: Transaction[], budgets: Budget[], month: num
 
 /**
  * "Livre para gastar": income − fixed bills − investments − groceries − other variable spending
- * already made. For the current month, income/fixed/investments include active recurring lines
- * not recorded yet (at their expected amount) and groceries are reserved up front; past months
+ * already made. For the current month, income/fixed/investments include expected recurring lines
+ * (active, not optional) not recorded yet (at their expected amount) and groceries are reserved up front; past months
  * use what was actually recorded.
  */
 export function freeToSpend(
@@ -62,7 +62,7 @@ export function freeToSpend(
   const isCurrent = today.getFullYear() === year && today.getMonth() + 1 === month;
 
   const missing = isCurrent
-    ? recurring.filter((r) => r.active && !inMonth.some((t) => t.type === r.type && t.description === r.description))
+    ? recurring.filter((r) => isExpected(r) && !inMonth.some((t) => t.type === r.type && t.description === r.description))
     : [];
   const expected = (type: string) => missing.filter((r) => r.type === type).reduce((a, r) => a + (r.expectedAmount ?? 0), 0);
 

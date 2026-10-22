@@ -15,6 +15,8 @@ const RECURRING = [
   { key: 'fixed|Aluguel', type: 'fixed' as const, description: 'Aluguel', dueDay: 5, active: true },
   { key: 'fixed|Netflix', type: 'fixed' as const, description: 'Netflix', dueDay: 25, active: true },
   { key: 'income|Salário', type: 'income' as const, description: 'Salário', dueDay: 30, active: true },
+  // Investments are optional unless set otherwise; this one is expected every month.
+  { key: 'investment|ETF', type: 'investment' as const, description: 'ETF', active: true, optional: false },
 ];
 
 const section = (title: RegExp) => screen.getByRole('heading', { name: title }).closest('section')!;
@@ -67,6 +69,49 @@ describe('Contas', () => {
     await waitFor(async () => expect((await octTxs()).find((t) => t.description === 'Netflix')).toMatchObject({ amount: 15, paid: true, type: 'fixed', category: 'Assinaturas', date: '2026-10-25' }));
     await undoToast(user, /Netflix registrado/);
     await waitFor(async () => expect((await octTxs()).find((t) => t.description === 'Netflix')).toBeUndefined());
+  });
+
+  describe('optional lines (investments by default)', () => {
+    beforeEach(async () => {
+      // Unemployed: the ETF goes back to its default, optional.
+      await db.recurring.put({ key: 'investment|ETF', type: 'investment', description: 'ETF', active: true });
+    });
+
+    it('wait in "Opcionais", out of the totals, the progress and "Iniciar mês"', async () => {
+      show();
+      const optional = await screen.findByRole('heading', { name: /Opcionais · 1/ }).then((h) => h.closest('section')!);
+      expect(within(optional).getByText('ETF')).toBeInTheDocument();
+      expect(within(optional).getByText(/não lançado este mês/)).toBeInTheDocument();
+      expect(within(optional).queryByRole('checkbox')).not.toBeInTheDocument();
+      expect(await screen.findByText(/0 de 3 feitas · 715,00\s€ a pagar · 2200,00\s€ a receber/)).toBeInTheDocument();
+      // Netflix and Salário only.
+      expect(screen.getByRole('button', { name: 'Iniciar outubro (2)' })).toBeInTheDocument();
+    });
+
+    it('"Lançar" records it with the expected amount, and then it counts as done', async () => {
+      const { user } = show();
+      const optional = await screen.findByRole('heading', { name: /Opcionais · 1/ }).then((h) => h.closest('section')!);
+      await user.click(within(optional).getByRole('button', { name: 'Lançar' }));
+      await waitFor(async () => expect((await octTxs()).find((t) => t.description === 'ETF')).toMatchObject({ amount: 300, paid: true, type: 'investment' }));
+      expect(await screen.findByText(/1 de 4 feitas/)).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: /Opcionais/ })).not.toBeInTheDocument();
+    });
+
+    it('any line can be made optional in its editor, and back', async () => {
+      const { user } = show();
+      await screen.findByRole('heading', { name: /Opcionais · 1/ });
+      await user.click(screen.getByRole('button', { name: 'Editar Netflix' }));
+      await user.click(screen.getByRole('checkbox', { name: /Opcional/ }));
+      await user.click(screen.getByRole('button', { name: 'Salvar' }));
+      await waitFor(async () => expect((await db.recurring.get('fixed|Netflix'))?.optional).toBe(true));
+      expect(await screen.findByRole('heading', { name: /Opcionais · 2/ })).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Editar ETF' }));
+      expect(screen.getByRole('checkbox', { name: /Opcional/ })).toBeChecked();
+      await user.click(screen.getByRole('checkbox', { name: /Opcional/ }));
+      await user.click(screen.getByRole('button', { name: 'Salvar' }));
+      await waitFor(async () => expect((await db.recurring.get('investment|ETF'))?.optional).toBe(false));
+    });
   });
 
   it('a past month with unpaid bills shows them as overdue', async () => {
