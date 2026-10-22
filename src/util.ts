@@ -16,3 +16,12 @@ export const MONTH_NAMES = [
 export function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/**
+ * Description for an entry saved without one. Variable/additional expenses use the importer's
+ * "(sem descrição)" (export then writes no comment); fixed/income/investment lines are sheet rows,
+ * so they take the category as their label.
+ */
+export function fallbackDescription(type: string, category: string): string {
+  return type === 'variable' || type === 'additional' || !category ? '(sem descrição)' : category;
+}

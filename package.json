@@ -8,7 +8,11 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p .",
+    "test:coverage": "vitest run --coverage",
+    "check": "npm run typecheck && npm run test:coverage",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "dexie": "4.0.10",
@@ -20,11 +24,16 @@
     "recharts": "2.13.3"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "@vitejs/plugin-react": "4.3.4",
+    "@vitest/coverage-v8": "^2.1.8",
     "autoprefixer": "10.4.20",
     "fake-indexeddb": "6.0.0",
+    "jsdom": "^25.0.1",
     "postcss": "8.4.49",
     "tailwindcss": "3.4.15",
     "typescript": "5.6.3",

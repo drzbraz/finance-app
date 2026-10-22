@@ -6,7 +6,7 @@ import { parseLooseNumber } from '../parser/cells';
 import { extractTags } from '../parser/parseWorkbook';
 import { categorize } from '../rules/engine';
 import { TYPE_LABELS, type Transaction, type TxType } from '../types';
-import { eur, newId } from '../util';
+import { eur, newId, fallbackDescription } from '../util';
 import { useToast } from './layout/Toast';
 import { Modal, Segmented } from './ui';
 
@@ -79,7 +79,8 @@ export default function QuickAdd({ year, month, history, onClose }: Props) {
     tags: extractTags(description),
     paid: paid ?? (type === 'variable' || type === 'additional'),
   };
-  const suggested = cleanDescription ? categorize(draft, rules).category : '';
+  // Without a description the category falls back to the type's default (e.g. Outros).
+  const suggested = categorize(draft, rules).category;
   const effectiveCategory = category ?? suggested;
 
   const onDescription = (value: string) => {
@@ -103,18 +104,15 @@ export default function QuickAdd({ year, month, history, onClose }: Props) {
       amountRef.current?.focus();
       return;
     }
-    if (!cleanDescription) {
-      setError('Informe uma descrição.');
-      return;
-    }
     const tx: Transaction = {
       ...draft,
       id: newId(),
+      description: cleanDescription || fallbackDescription(type, effectiveCategory),
       category: effectiveCategory,
       categorySource: category !== null && category !== suggested ? 'manual' : 'auto',
     };
     await saveTransaction(tx);
-    toast(`${tx.description} · ${eur.format(tx.amount)} adicionado`, () => deleteTransaction(tx));
+    toast(`${cleanDescription || effectiveCategory} · ${eur.format(tx.amount)} adicionado`, () => deleteTransaction(tx));
     if (keepOpen) {
       setAmountText('');
       setDescription('');
@@ -161,7 +159,7 @@ export default function QuickAdd({ year, month, history, onClose }: Props) {
         </label>
 
         <label className="block">
-          <span className="label">Descrição</span>
+          <span className="label">Descrição <span className="font-normal text-ink-3">(opcional)</span></span>
           <input
             ref={descriptionRef}
             className="input mt-1"
@@ -196,7 +194,7 @@ export default function QuickAdd({ year, month, history, onClose }: Props) {
                 <option key={c} value={c}>{categoryIcon(c)} {c}</option>
               ))}
             </select>
-            {category === null && suggested && <span className="mt-1 block text-xs text-ink-3">Sugerida pela descrição</span>}
+            {category === null && cleanDescription && suggested && <span className="mt-1 block text-xs text-ink-3">Sugerida pela descrição</span>}
           </label>
           <label className="block">
             <span className="label">Data</span>

@@ -24,6 +24,15 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Screens and components run in a browser-like DOM.
+    environmentMatchGlobs: [['tests/ui/**', 'jsdom']],
     setupFiles: ['tests/setup.ts'],
+    // `npm run check` fails when coverage drops below these (today: ~98% lines, ~94% branches).
+    coverage: {
+      include: ['src/**'],
+      exclude: ['src/main.tsx'],
+      reporter: ['text-summary', 'html'],
+      thresholds: { lines: 95, statements: 95, branches: 90, functions: 80 },
+    },
   },
 });

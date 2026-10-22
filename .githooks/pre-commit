@@ -1,0 +1,7 @@
+#!/bin/sh
+# Blocks the commit when types, tests or coverage break. Skip once with: git commit --no-verify
+echo "pre-commit: npm run check"
+npm run check --silent || {
+  echo "pre-commit: check failed, commit blocked."
+  exit 1
+}

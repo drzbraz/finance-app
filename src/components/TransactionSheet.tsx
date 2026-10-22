@@ -6,7 +6,7 @@ import { parseLooseNumber } from '../parser/cells';
 import { extractTags } from '../parser/parseWorkbook';
 import { categorize } from '../rules/engine';
 import { TX_TYPES, TYPE_LABELS, type Transaction, type TxType } from '../types';
-import { MONTH_NAMES } from '../util';
+import { fallbackDescription, MONTH_NAMES } from '../util';
 import { useToast } from './layout/Toast';
 import RulePrompt from './RulePrompt';
 import { Sheet } from './ui';
@@ -24,11 +24,12 @@ export default function TransactionSheet({ tx, history, onClose }: { tx: Transac
   const save = async () => {
     const amount = parseLooseNumber(amountText);
     if (amount === null) return;
-    let next: Transaction = { ...draft, amount, tags: [...new Set([...draft.tags, ...extractTags(draft.description)])] };
+    let next: Transaction = { ...draft, description: draft.description.trim(), amount, tags: [...new Set([...draft.tags, ...extractTags(draft.description)])] };
     if (next.categorySource === 'auto' && next.description !== tx.description) next = categorize(next, rules);
+    if (!next.description) next = { ...next, description: fallbackDescription(next.type, next.category) };
     await saveTransaction(next);
     toast('Lançamento atualizado', () => restoreTransaction(tx));
-    if (next.categorySource === 'manual' && next.category !== tx.category) setPrompt({ description: next.description, category: next.category });
+    if (next.categorySource === 'manual' && next.category !== tx.category && !next.description.startsWith('(')) setPrompt({ description: next.description, category: next.category });
     else onClose();
   };
 

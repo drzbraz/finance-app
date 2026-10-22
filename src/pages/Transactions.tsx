@@ -1,9 +1,7 @@
 import { useMemo, useState } from 'react';
 import { categoryIcon } from '../categories';
-import { useToast } from '../components/layout/Toast';
 import TransactionSheet from '../components/TransactionSheet';
-import { EmptyState, PageHeader, PaidCheck } from '../components/ui';
-import { restoreTransaction, saveTransaction } from '../db/repo';
+import { EmptyState, PageHeader } from '../components/ui';
 import { useCategories, useRules, useYearTransactions } from '../hooks';
 import { normalize } from '../parser/normalize';
 import { TX_TYPES, TYPE_LABELS, type Transaction, type TxType } from '../types';
@@ -15,7 +13,6 @@ export default function Transactions({ year, month, onAdd }: { year: number; mon
   const txs = useYearTransactions(year);
   const rules = useRules();
   const categories = useCategories(rules, txs);
-  const toast = useToast();
   const [allMonths, setAllMonths] = useState(false);
   const [search, setSearch] = useState('');
   const [types, setTypes] = useState<TxType[]>([]);
@@ -42,11 +39,6 @@ export default function Transactions({ year, month, onAdd }: { year: number; mon
   }
   const income = rows.filter((t) => t.type === 'income').reduce((a, t) => a + t.amount, 0);
   const out = rows.filter((t) => t.type !== 'income').reduce((a, t) => a + t.amount, 0);
-
-  const togglePaid = async (t: Transaction) => {
-    await saveTransaction({ ...t, paid: !t.paid });
-    toast(`${t.description}: ${!t.paid ? (t.type === 'income' ? 'recebido' : 'pago') : 'pendente'}`, () => restoreTransaction(t));
-  };
 
   const toggleType = (t: TxType) => setTypes((xs) => (xs.includes(t) ? xs.filter((x) => x !== t) : [...xs, t]));
   const filtered = types.length || category || status || tag || q;
@@ -113,7 +105,6 @@ export default function Transactions({ year, month, onAdd }: { year: number; mon
                       <span className={`num text-sm font-semibold ${t.type === 'income' ? 'text-good' : ''}`}>
                         {t.type === 'income' ? '+' : '−'}{eur.format(t.amount)}
                       </span>
-                      <PaidCheck checked={t.paid} onChange={() => togglePaid(t)} label={t.type === 'income' ? 'Recebido' : 'Pago'} />
                     </div>
                   </li>
                 ))}

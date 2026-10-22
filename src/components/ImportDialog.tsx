@@ -77,10 +77,16 @@ export default function ImportDialog({ initialFile, onClose, onImported }: Props
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFile]);
 
+  // The year shows at once; whether it already exists is looked up after, keeping only the latest answer.
+  const yearLookup = useRef(0);
   const changeYear = async (value: string) => {
     if (!parsed) return;
     const year = value ? Number(value) : '';
-    setParsed({ ...parsed, year, existing: year !== '' && (await hasYear(year)), appOnly: year !== '' ? await appOnlyCount(year) : 0 });
+    const lookup = ++yearLookup.current;
+    setParsed((p) => p && { ...p, year, existing: false, appOnly: 0 });
+    const existing = year !== '' && (await hasYear(year));
+    const appOnly = year !== '' ? await appOnlyCount(year) : 0;
+    if (lookup === yearLookup.current) setParsed((p) => p && { ...p, existing, appOnly });
   };
 
   const confirm = async () => {

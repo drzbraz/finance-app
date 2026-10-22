@@ -13,7 +13,8 @@ cannot open network connections even by accident.
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # Vitest unit tests
+npm test           # Vitest: logic + screen tests
+npm run check      # types + tests + minimum coverage (runs before every commit)
 npm run build      # static files in dist/
 npm run preview    # serve dist/ on http://localhost:4173
 ```
@@ -123,6 +124,21 @@ today). Google's proprietary `commentsmeta` part is dropped, so comments come ba
 Re-importing a year replaces its imported entries. Manual categories/tags on the same cell are
 kept, and entries created only in the app are kept too.
 
+## Tests
+
+`npm test` runs two layers:
+
+- **Logic** (`tests/*.test.ts`, `tests/parser`, `tests/export`): parser, export round trip, rules,
+  analytics, database, on synthetic workbooks built with ExcelJS.
+- **Screens** (`tests/ui`, jsdom + Testing Library): each page used like a person would: Novo
+  lançamento, Transações, Contas (Iniciar mês and its undo, add/edit/delete bills, limits), Início
+  (Livre para gastar), Orçamentos, Metas, Comparar, Configurações, Importar/Exportar, the N shortcut and
+  drag-and-drop. "Today" is frozen at 22/10/2026 and every test starts from an empty database.
+
+`npm run check` = typecheck + tests + coverage thresholds (95% lines, 90% branches). A git
+pre-commit hook (`.githooks/pre-commit`, enabled by `npm install`) runs it and blocks the commit when
+something breaks. When you add a feature, add its test next to the page's file in `tests/ui`.
+
 ## Project layout
 
 ```
@@ -134,5 +150,5 @@ src/db/         Dexie schema (v2 migration), repository, export action, JSON bac
 src/export/     write back into the original workbook; formula row shifting
 src/components/ shell (sidebar, top bar, tabs), Quick Add, Import/Export, sheets, charts, UI kit
 src/pages/      Início, Transações, Contas, Orçamentos, Metas, Comparar, Configurações
-tests/          Vitest (synthetic fixtures built with ExcelJS; no personal data)
+tests/          Vitest (synthetic fixtures built with ExcelJS; no personal data); tests/ui = screens
 ```

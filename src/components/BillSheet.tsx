@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { daysInMonth, isoDate, recurringKey, renameRecurringTxs, type Bill } from '../analytics/bills';
-import { db } from '../db/schema';
-import { removeRecurring, restoreTransaction, saveRecurring, saveTransaction, updateRecurring } from '../db/repo';
+import { deleteTransaction, removeRecurring, restoreTransaction, saveRecurring, saveTransaction, updateRecurring } from '../db/repo';
 import { useRules } from '../hooks';
 import { parseLooseNumber } from '../parser/cells';
 import { categorize } from '../rules/engine';
@@ -96,7 +95,8 @@ export default function BillSheet({ bill, year, month, txs, existingKeys, onClos
     if (!item) return;
     const dropped = deletePending ? pendingThisMonth : [];
     await removeRecurring(item);
-    if (dropped.length) await db.transactions.bulkDelete(dropped.map((t) => t.id));
+    // deleteTransaction soft-deletes imported rows, so the export clears their cell.
+    await Promise.all(dropped.map((t) => deleteTransaction(t)));
     toast(`${item.description} removida das contas`, async () => {
       await saveRecurring({ ...item, removed: false });
       await Promise.all(dropped.map((t) => restoreTransaction(t)));

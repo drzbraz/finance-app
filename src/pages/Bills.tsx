@@ -6,7 +6,7 @@ import BillSheet from '../components/BillSheet';
 import SpendingLimits from '../components/SpendingLimits';
 import { EmptyState, PageHeader, PaidCheck, ProgressBar } from '../components/ui';
 import { db } from '../db/schema';
-import { restoreTransaction, saveRecurring, saveTransaction } from '../db/repo';
+import { deleteTransaction, restoreTransaction, saveRecurring, saveTransaction } from '../db/repo';
 import { useRules, useStoredRecurring, useToday, useYearTransactions } from '../hooks';
 import { categorize } from '../rules/engine';
 import { TYPE_LABELS } from '../types';
@@ -76,7 +76,8 @@ export default function Bills({ year, month }: { year: number; month: number }) 
 
   const undoStart = async () => {
     const removed = started;
-    await db.transactions.bulkDelete(removed.map((t) => t.id));
+    // After an export these have a sheet cell: soft-delete so the next export clears it.
+    await Promise.all(removed.map((t) => deleteTransaction(t)));
     setConfirmUndo(false);
     toast(`Início de ${MONTH_NAMES[month - 1].toLowerCase()} desfeito: ${removed.length} lançamento(s) pendente(s) removido(s)`, () =>
       Promise.all(removed.map((t) => restoreTransaction(t))),
