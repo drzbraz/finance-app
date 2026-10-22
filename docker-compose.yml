@@ -1,0 +1,52 @@
+# One command runs everything: `npm run up` (docker compose up --build -d), then open http://localhost:8080.
+# Nothing is published beyond 127.0.0.1: there is no login, so the app must not be reachable from the network.
+name: finance-app
+
+services:
+  mongo:
+    image: mongo:8.0
+    # A single-node replica set: the backend writes imports and backups in transactions.
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Initiates the replica set on first start; healthy once this node is primary.
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "try { rs.status() } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }) }; db.hello().isWritablePrimary || quit(1)"
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    # A released image instead of a local build: BACKEND_IMAGE=ghcr.io/<owner>/finance-app-backend:1.0.0
+    image: ${BACKEND_IMAGE:-finance-app-backend:local}
+    environment:
+      MONGO_URI: mongodb://mongo:27017/finance?replicaSet=rs0
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: ${FRONTEND_IMAGE:-finance-app-frontend:local}
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

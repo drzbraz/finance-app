@@ -151,4 +151,4 @@ vite.config.ts.timestamp-*
 # finance-app: never commit personal spreadsheets or local check scripts
 *.xlsx
 !tests/**/*.xlsx
-scripts/local-*
+**/scripts/local-*

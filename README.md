@@ -4,28 +4,129 @@ Imports the "Controle financeiro" Google Sheets export (.xlsx), turns it into ca
 transactions, and gives you a dashboard with insights, bills, budgets, goals and year-over-year
 comparison. It exports back to .xlsx in the same layout.
 
-**Local only.** No backend, no API calls, no telemetry. Data lives in the browser's IndexedDB.
-The production build ships a Content-Security-Policy with `connect-src 'none'`, so the app
-cannot open network connections even by accident.
+**Runs on your computer only.** Three Docker containers: the React frontend (nginx), the NestJS
+API and MongoDB. There is no login, so nothing is published beyond `127.0.0.1`: the app is reachable
+from this machine only, never from your network. No telemetry, no calls to outside services; the
+built frontend ships a Content-Security-Policy that only allows its own origin.
 
-## Setup
+## Run it
+
+Requirements: Docker Desktop (running).
 
 ```sh
-npm install
-npm run dev        # http://localhost:5173
-npm test           # Vitest: logic + screen tests
-npm run check      # types + tests + minimum coverage (runs before every commit)
-npm run build      # static files in dist/
-npm run preview    # serve dist/ on http://localhost:4173
+npm run up      # docker compose up --build -d: database, backend and frontend
+open http://localhost:8080
+npm run logs    # follow the logs
+npm run down    # stop (your data stays in the "mongo-data" volume)
 ```
 
-`dist/` uses relative paths and works from any static server. Opening `dist/index.html` straight
-from disk (`file://`) is **not recommended**: browsers block ES module scripts on `file://`, and some
-give IndexedDB a throwaway origin there, so your data may not persist. Use `npm run preview`, or
-`python3 -m http.server -d dist` to serve the folder locally.
+Without npm: `docker compose up --build -d`. Another port: `FRONTEND_PORT=9000 npm run up`.
 
-Data belongs to the browser profile and origin (e.g. `http://localhost:4173`). Use
-**Importar / Exportar → Backup .json** to move or keep it safe.
+Your data lives in the Docker volume `finance-app_mongo-data`. `docker compose down -v` **deletes
+it**; use **Exportar → Backup completo (.json)** first if you want a copy.
+
+### Moving data from the browser-only version
+
+Versions before 1.0.0 kept everything in the browser. Open the old version, use **Exportar →
+Backup completo (.json)**, then drop that file on the new app (http://localhost:8080) and choose
+**Restaurar backup**.
+
+## Architecture
+
+```
+browser ──► frontend (nginx :8080 on 127.0.0.1) ──/api──► backend (NestJS :3000) ──► MongoDB 8 (replica set rs0)
+```
+
+| Folder | What | Version |
+| --- | --- | --- |
+| `frontend/` | React 18 + Vite + Tailwind. Screens and analytics (pure functions); data comes from `/api`. | `frontend/package.json` |
+| `backend/` | NestJS 12 + Mongoose. Storage, spreadsheet import/export, rules, backups. | `backend/package.json` |
+| `packages/shared/` | Types (the API contract), category rules engine, text helpers. Used by both. | not released |
+
+**Why MongoDB.** The data is already document-shaped: a transaction carries its tags and source
+cell, a goal its contributions, settings are one object, and the backup is a JSON file that maps
+one-to-one onto the collections. There are no joins or reports that need SQL, and it is a single
+user. PostgreSQL would be the better choice if you later want ad-hoc SQL reporting or strict
+relational constraints; nothing in the services depends on Mongo beyond the repositories.
+
+The database runs as a single-node replica set because imports, exports, restores and bill renames
+write several collections in one **transaction** (all or nothing).
+
+### Backend layout
+
+Each feature is a Nest module with a `*.controller.ts` (HTTP only), a `*.service.ts` (the rules)
+and a `*.repository.ts` (MongoDB only):
+
+```
+backend/src/
+  transactions/ rules/ settings/ budgets/ goals/ recurring/   one module per collection
+  years/          year list, status ("changes not exported"), delete a year
+  spreadsheets/   preview + import + export; domain/parser and domain/export are the xlsx logic
+  backup/         full JSON backup / restore
+  workbooks/      the stored .xlsx per year (repository only)
+  database/       DocumentRepository (natural key = _id) and UnitOfWork (transactions)
+  common/ config/ health/ seed/
+```
+
+### API
+
+All under `/api`; bodies are the types in `packages/shared/src`.
+
+| Method and path | Does |
+| --- | --- |
+| `GET health` | `{ status, version }`, 503 when the database is down |
+| `GET transactions?year=` | the year's live entries |
+| `PUT transactions/:id` · `POST transactions/bulk` | save (stamped with `updatedAt`) |
+| `POST transactions/:id/restore` | undo: put an entry back exactly as it was |
+| `DELETE transactions/:id` · `POST transactions/bulk-delete` | soft delete for spreadsheet rows, hard delete otherwise |
+| `GET/POST rules` · `DELETE rules/:id` | a new rule re-categorises automatic entries |
+| `GET/PATCH settings` | |
+| `GET budgets` · `PUT budgets/:category` · `POST budgets/bulk` · `POST budgets/bulk-delete` | a limit ≤ 0 removes the budget |
+| `GET goals` · `PUT/DELETE goals/:id` | |
+| `GET recurring` · `PUT/DELETE recurring/:key` · `POST recurring/update` | bills; a rename tombstones the old key |
+| `GET years` · `GET/DELETE years/:year` | status = exists, app-only entries, changes not exported |
+| `POST spreadsheets/preview?year=` | multipart `file`: what an import would do, saves nothing |
+| `PUT years/:year/spreadsheet` | multipart `file`: import (max 15 MB) |
+| `POST years/:year/spreadsheet/export` | the .xlsx; warnings in the `X-Export-Warnings` header |
+| `GET/POST backup` | full backup / restore (v1 and v2 files) |
+
+## Development
+
+Node 22.12+.
+
+```sh
+npm install            # all workspaces; also enables the pre-commit hook
+npm run db             # only MongoDB in Docker, published on 127.0.0.1:27017 (docker-compose.dev.yml)
+npm run dev:backend    # API on :3000 with reload
+npm run dev:frontend   # http://localhost:5173, /api proxied to :3000
+npm run check          # every workspace: typecheck + tests (+ coverage thresholds)
+```
+
+## Versions and releases
+
+The frontend and the backend are versioned **independently** (semver, each in its own
+`package.json` and `CHANGELOG.md`), and each release is a git tag: `frontend-v1.0.0`, `backend-v1.0.0`.
+
+```sh
+# 1. write what changed under "## Unreleased" in backend/CHANGELOG.md
+npm run release -- backend minor     # or patch / major / 1.4.0 → bumps, commits, tags backend-v1.1.0
+git push --follow-tags               # publishes
+```
+
+Pushing the tag starts the **Release** workflow (`.github/workflows/release.yml`): it checks that the tag
+matches `package.json`, runs that app's tests, pushes its Docker image to
+`ghcr.io/<owner>/finance-app-<app>:<version>` and creates the GitHub release with the changelog notes.
+**CI** (`ci.yml`) runs every check and builds both images on each push and pull request.
+
+To run an exact released version instead of building from source:
+
+```sh
+BACKEND_IMAGE=ghcr.io/<owner>/finance-app-backend:1.0.0 \
+FRONTEND_IMAGE=ghcr.io/<owner>/finance-app-frontend:1.0.0 \
+docker compose up -d --no-build
+```
+
+The running versions are visible at `/api/health` (backend).
 
 ## Using the app
 
@@ -106,7 +207,7 @@ Sheet `Listas de itens` (falls back to the first sheet).
 
 ## Export
 
-Exports start from the **originally imported file** (kept in IndexedDB), so formatting, formulas,
+Exports start from the **originally imported file** (kept in MongoDB), so formatting, formulas,
 and conditional formats survive:
 
 - values, comments (Google header kept), and green fills go back to each transaction's source cell
@@ -126,29 +227,18 @@ kept, and entries created only in the app are kept too.
 
 ## Tests
 
-`npm test` runs two layers:
+`npm run check` (or `npm test`) runs every workspace:
 
-- **Logic** (`tests/*.test.ts`, `tests/parser`, `tests/export`): parser, export round trip, rules,
-  analytics, database, on synthetic workbooks built with ExcelJS.
-- **Screens** (`tests/ui`, jsdom + Testing Library): each page used like a person would: Novo
-  lançamento, Transações, Contas (Iniciar mês and its undo, add/edit/delete bills, limits), Início
-  (Livre para gastar), Orçamentos, Metas, Comparar, Configurações, Importar/Exportar, the N shortcut and
-  drag-and-drop. "Today" is frozen at 22/10/2026 and every test starts from an empty database.
+- **backend** (Vitest, `backend/`):
+  - unit: every service and controller with mocked repositories (`src/**/*.spec.ts`), plus the
+    spreadsheet parser and exporter on synthetic workbooks built with ExcelJS;
+  - integration: the repositories and transactions against a real MongoDB replica set
+    (`*.integration-spec.ts`, mongodb-memory-server);
+  - end to end: every endpoint over HTTP with supertest (`test/*.e2e-spec.ts`), including
+    import → edit → export → re-import round trips.
+- **shared**: rules engine and text helpers.
+- **frontend**: analytics, and every screen used like a person would (jsdom + Testing Library)
+  against an in-memory fake of the API. "Today" is frozen at 22/10/2026.
 
-`npm run check` = typecheck + tests + coverage thresholds (95% lines, 90% branches). A git
-pre-commit hook (`.githooks/pre-commit`, enabled by `npm install`) runs it and blocks the commit when
-something breaks. When you add a feature, add its test next to the page's file in `tests/ui`.
-
-## Project layout
-
-```
-src/parser/     xlsx → transactions (sections, colours, comments, config)
-src/rules/      default categories + keyword rules engine
-src/analytics/  pure functions: totals, saldo, savings rate, deviations, checklist, bills,
-                budgets, goals, forecast + insights, year over year
-src/db/         Dexie schema (v2 migration), repository, export action, JSON backup (v1/v2)
-src/export/     write back into the original workbook; formula row shifting
-src/components/ shell (sidebar, top bar, tabs), Quick Add, Import/Export, sheets, charts, UI kit
-src/pages/      Início, Transações, Contas, Orçamentos, Metas, Comparar, Configurações
-tests/          Vitest (synthetic fixtures built with ExcelJS; no personal data); tests/ui = screens
-```
+Coverage thresholds fail the check when they drop. The git pre-commit hook (`.githooks/pre-commit`,
+enabled by `npm install`) runs `npm run check`. No test uses personal data.

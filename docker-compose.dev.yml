@@ -1,0 +1,6 @@
+# Development only (`npm run db`): publishes MongoDB on 127.0.0.1 so `npm run dev:backend` can reach it.
+# `npm run up` does not use this file, so then only the frontend is published.
+services:
+  mongo:
+    ports:
+      - "127.0.0.1:27017:27017"
