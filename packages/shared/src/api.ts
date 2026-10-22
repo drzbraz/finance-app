@@ -68,3 +68,44 @@ export interface AddRuleResult {
 
 /** Response header carrying the xlsx export's warnings (URI-encoded JSON array). */
 export const EXPORT_WARNINGS_HEADER = 'X-Export-Warnings';
+
+/** Why a bank-statement line waits for the user instead of being recorded right away. */
+export type StatementDoubt =
+  /** An entry with the same amount is already in the app that month (typed by hand or from the sheet). */
+  | 'duplicate'
+  /** A direct debit whose category already has a fixed bill that month, with another amount. */
+  | 'bill'
+  /** Money moved to or from another account of mine: savings, an investment, or not an expense at all. */
+  | 'own-transfer'
+  /** Sent to a person or a company: rent, a Splitwise settle-up, a gift… */
+  | 'transfer'
+  /** Money in: salary, a refund, a sale, someone paying me back… */
+  | 'credit'
+  /** No rule or known merchant gave it a category. */
+  | 'no-category'
+  /** The amount does not add up with the balance printed on the statement. */
+  | 'balance';
+
+export interface StatementRow {
+  /** The entry it would become; the id is deterministic, so importing the same file twice is detected. */
+  transaction: Transaction;
+  /** The line as printed on the statement. */
+  raw: string;
+  direction: 'debit' | 'credit';
+  /** Empty = recorded by default; otherwise the user decides. */
+  doubts: StatementDoubt[];
+  /** The entry already in the app that looks like this one ('duplicate'). */
+  match?: Pick<Transaction, 'id' | 'description' | 'date' | 'amount' | 'type'>;
+  /** This same line was imported from a statement before. */
+  alreadyImported: boolean;
+}
+
+/** A bank statement read on the server, shown for review before anything is saved. */
+export interface StatementPreview {
+  bank: string;
+  fileName: string;
+  /** Period covered, ISO yyyy-mm-dd. */
+  from: string;
+  to: string;
+  rows: StatementRow[];
+}

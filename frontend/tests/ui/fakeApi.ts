@@ -25,6 +25,8 @@ import {
 } from '@finance/shared';
 import { writeLedgerOnly, writeWorkbook } from '../../../backend/src/spreadsheets/domain/export/write-workbook';
 import { parseWorkbook, SHEET_NAME } from '../../../backend/src/spreadsheets/domain/parser/parse-workbook';
+import { readStatement } from '../../../backend/src/statements/domain/read-statement';
+import { reviewStatement } from '../../../backend/src/statements/domain/review';
 
 interface StoredWorkbook {
   year: number;
@@ -253,6 +255,23 @@ async function uploaded(body: unknown): Promise<{ data: Buffer; fileName: string
   return { data: Buffer.from(await file.arrayBuffer()), fileName };
 }
 
+/** Same as StatementImportService.preview: read, then review against the rules and the live entries. */
+async function previewStatement(body: unknown) {
+  const file = body instanceof FormData ? body.get('file') : null;
+  if (!(file instanceof Blob)) throw new HttpError(400, 'Send the statement in the "file" field');
+  const fileName = (file as File).name ?? '';
+  if (!fileName.toLowerCase().endsWith('.pdf')) throw new HttpError(400, 'Only .pdf bank statements can be imported');
+  let statement;
+  try {
+    statement = await readStatement(new Uint8Array(await file.arrayBuffer()));
+  } catch (e) {
+    throw new HttpError(422, `Could not read the statement: ${(e as Error).message}`);
+  }
+  const years = new Set([statement.from, statement.to].map((d) => Number(d.slice(0, 4))));
+  const rows = reviewStatement(statement, db.rules.all(), db.transactions.all().filter((t) => years.has(t.year) && !t.deleted));
+  return { bank: statement.bank, fileName, from: statement.from, to: statement.to, rows };
+}
+
 async function route(method: string, path: string, query: URLSearchParams, body: any): Promise<Reply> {
   const p = path.split('/').filter(Boolean).map(decodeURIComponent);
   const b = p[1];
@@ -299,6 +318,7 @@ async function route(method: string, path: string, query: URLSearchParams, body:
       const f = await uploaded(body);
       return ok(await preview(f.data, f.fileName, query.get('year') ? Number(query.get('year')) : undefined));
     }
+    case 'POST statements/preview': return ok(await previewStatement(body));
     case 'GET backup': return ok(exportBackup());
     case 'POST backup': restoreBackup(body); return ok();
   }

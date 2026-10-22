@@ -12,6 +12,7 @@ import { RulesModule } from './rules/rules.module.js';
 import { SeedModule } from './seed/seed.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { SpreadsheetsModule } from './spreadsheets/spreadsheets.module.js';
+import { StatementsModule } from './statements/statements.module.js';
 import { TransactionsModule } from './transactions/transactions.module.js';
 import { YearsModule } from './years/years.module.js';
 
@@ -30,6 +31,7 @@ import { YearsModule } from './years/years.module.js';
     RecurringModule,
     YearsModule,
     SpreadsheetsModule,
+    StatementsModule,
     BackupModule,
   ],
 })

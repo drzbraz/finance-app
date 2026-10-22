@@ -21,7 +21,7 @@ describe('Transações', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  const show = () => setup(<Transactions year={2026} month={10} onAdd={vi.fn()} />);
+  const show = () => setup(<Transactions year={2026} month={10} onAdd={vi.fn()} onImportStatement={vi.fn()} />);
 
   it('lists only the selected month, newest first, with totals', async () => {
     show();

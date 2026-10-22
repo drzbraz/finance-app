@@ -9,6 +9,7 @@ import {
   type ImportSummary,
   type RecurringItem,
   type Settings,
+  type StatementPreview,
   type Transaction,
   type YearStatus,
 } from '@finance/shared';
@@ -175,6 +176,13 @@ function fileNameOf(response: Response): string | undefined {
   const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
   if (utf8) return decodeURIComponent(utf8[1]);
   return /filename="([^"]+)"/i.exec(disposition)?.[1];
+}
+
+// ---- bank statements ----
+
+/** Reads a bank statement PDF on the server and reviews each line; nothing is saved. */
+export function previewStatement(file: File): Promise<StatementPreview> {
+  return request<StatementPreview>('POST', '/statements/preview', upload(file));
 }
 
 // ---- JSON backup ----

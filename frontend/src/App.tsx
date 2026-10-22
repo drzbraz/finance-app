@@ -4,6 +4,7 @@ import type { PageId } from './components/layout/nav';
 import { ToastProvider } from './components/layout/Toast';
 import ImportDialog from './components/ImportDialog';
 import QuickAdd from './components/QuickAdd';
+import StatementImport from './components/StatementImport';
 import { useSettings, useYears, useYearTransactions } from './hooks';
 import Bills from './pages/Bills';
 import Budgets from './pages/Budgets';
@@ -39,6 +40,7 @@ function Main() {
   const [adding, setAdding] = useState(false);
   // `stay`: importing another year from Comparar keeps you there, on the year you were comparing.
   const [importing, setImporting] = useState<{ file: File | null; stay?: boolean } | null>(null);
+  const [statement, setStatement] = useState<{ file: File | null } | null>(null);
   const [dragging, setDragging] = useState(false);
   const history = useYearTransactions(year);
 
@@ -53,7 +55,7 @@ function Main() {
   // e.code, not e.key: on a Mac ⌥N types "˜".
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'KeyN' || e.shiftKey || adding || importing) return;
+      if (e.code !== 'KeyN' || e.shiftKey || adding || importing || statement) return;
       const mod = e.altKey || e.metaKey || e.ctrlKey;
       const plain = !e.altKey && !e.metaKey && !e.ctrlKey && !isTyping(e);
       if (mod || plain) {
@@ -63,9 +65,9 @@ function Main() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [adding, importing]);
+  }, [adding, importing, statement]);
 
-  // Drop an .xlsx / .json anywhere on the window to import it.
+  // Drop an .xlsx / .json anywhere on the window to import it; a .pdf is read as a bank statement.
   useEffect(() => {
     let depth = 0;
     const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files');
@@ -86,6 +88,7 @@ function Main() {
       setDragging(false);
       const file = e.dataTransfer?.files[0];
       if (file && /\.(xlsx|json)$/i.test(file.name)) setImporting({ file });
+      else if (file && /\.pdf$/i.test(file.name)) setStatement({ file });
     };
     window.addEventListener('dragenter', enter);
     window.addEventListener('dragleave', leave);
@@ -119,7 +122,7 @@ function Main() {
       onImport={openImport}
     >
       {page === 'home' && <Home year={year} month={month} colors={colors} onPage={setPage} onAdd={openAdd} onImport={openImport} />}
-      {page === 'transactions' && <Transactions year={year} month={month} onAdd={openAdd} />}
+      {page === 'transactions' && <Transactions year={year} month={month} onAdd={openAdd} onImportStatement={() => setStatement({ file: null })} />}
       {page === 'bills' && <Bills year={year} month={month} />}
       {page === 'budgets' && <Budgets year={year} month={month} />}
       {page === 'goals' && <Goals year={year} />}
@@ -135,6 +138,16 @@ function Main() {
             if (importing.stay) return;
             setYear(y);
             setPage('home');
+          }}
+        />
+      )}
+      {statement && (
+        <StatementImport
+          initialFile={statement.file}
+          onClose={() => setStatement(null)}
+          onImported={(y, m) => {
+            go(y, m);
+            setPage('transactions');
           }}
         />
       )}

@@ -8,7 +8,7 @@ import { eur, MONTH_NAMES } from '../util';
 
 const TYPE_SHORT: Record<TxType, string> = { income: 'Receitas', investment: 'Investimentos', fixed: 'Fixas', variable: 'Variáveis', additional: 'Adicionais' };
 
-export default function Transactions({ year, month, onAdd }: { year: number; month: number; onAdd: () => void }) {
+export default function Transactions({ year, month, onAdd, onImportStatement }: { year: number; month: number; onAdd: () => void; onImportStatement: () => void }) {
   const txs = useYearTransactions(year);
   const rules = useRules();
   const categories = useCategories(rules, txs);
@@ -47,7 +47,12 @@ export default function Transactions({ year, month, onAdd }: { year: number; mon
       <PageHeader
         title="Transações"
         subtitle={`${allMonths ? year : `${MONTH_NAMES[month - 1]} ${year}`} · ${rows.length} lançamento(s) · entradas ${eur.format(income)} · saídas ${eur.format(out)}`}
-        actions={<button className="btn-primary" onClick={onAdd}>+ Novo</button>}
+        actions={
+          <>
+            <button className="btn" onClick={onImportStatement} title="Lê o PDF do banco e sugere os lançamentos">⬆︎ Importar extrato PDF</button>
+            <button className="btn-primary" onClick={onAdd}>+ Novo</button>
+          </>
+        }
       />
 
       <div className="card mb-4 space-y-3 p-3 sm:p-4">
