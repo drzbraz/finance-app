@@ -188,14 +188,6 @@ describe('forecast and insights', () => {
     expect(list.map((i) => i.id)).toContain('budget-Lazer');
     expect(list.map((i) => i.id)).toContain('biggest');
   });
-
-  it('skips category deviations with a small average', () => {
-    const base = { budgets: [], recurring: [], settings: DEFAULT_SETTINGS, year: 2026, month: 3, today: day('2026-06-01') };
-    const small = [tx({ month: 1, category: 'Café', amount: 5 }), tx({ month: 2, category: 'Café', amount: 5 }), tx({ month: 3, category: 'Café', amount: 50 })];
-    expect(insights({ ...base, txs: small }).some((i) => i.id === 'dev-Café')).toBe(false);
-    const big = small.map((t) => ({ ...t, amount: t.amount * 10 }));
-    expect(insights({ ...base, txs: big }).some((i) => i.id === 'dev-Café')).toBe(true);
-  });
 });
 
 describe('goalStatus', () => {

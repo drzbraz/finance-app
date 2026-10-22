@@ -5,7 +5,8 @@ import { categoryIcon } from '../categories';
 import { useCategories, useRules } from '../hooks';
 import { eur } from '../util';
 import { useToast } from './layout/Toast';
-import { Modal } from './ui';
+import FileDrop from './FileDrop';
+import { Modal, Spinner } from './ui';
 
 interface Props {
   /** A PDF dropped on the window, read right away. */
@@ -59,7 +60,6 @@ export default function StatementImport({ initialFile, onClose, onImported }: Pr
   const [choices, setChoices] = useState<Choice[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
   const handle = async (file: File) => {
@@ -80,7 +80,6 @@ export default function StatementImport({ initialFile, onClose, onImported }: Pr
 
   useEffect(() => {
     if (initialFile) handle(initialFile);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFile]);
 
   const update = (id: string, patch: (c: Choice) => Partial<Choice>) =>
@@ -113,28 +112,15 @@ export default function StatementImport({ initialFile, onClose, onImported }: Pr
   return (
     <Modal title="Importar extrato do banco" onClose={onClose} wide>
       {!preview && (
-        <button
-          type="button"
-          className={`flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition ${dragging ? 'border-accent bg-accent-soft' : 'border-line hover:border-accent'}`}
-          onClick={() => input.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            const f = e.dataTransfer.files[0];
-            if (f) handle(f);
-          }}
-        >
-          <span className="text-4xl" aria-hidden>🏦</span>
-          <span className="font-semibold">{busy ? 'Lendo extrato…' : 'Arraste o extrato em PDF aqui ou clique para escolher'}</span>
-          <span className="text-sm text-ink-2">
-            Por enquanto, o “Extrato Combinado” do ActivoBank. O PDF é lido pelo servidor do app, no seu computador, e não fica guardado.
-          </span>
-        </button>
+        <FileDrop
+          icon="🏦"
+          title="Arraste o extrato em PDF aqui ou clique para escolher"
+          busyTitle="Lendo extrato…"
+          hint="Por enquanto, o “Extrato Combinado” do ActivoBank. O PDF é lido pelo servidor do app, no seu computador, e não fica guardado."
+          busy={busy}
+          onPick={() => input.current?.click()}
+          onFile={handle}
+        />
       )}
       <input ref={input} type="file" accept=".pdf,application/pdf" className="hidden" onChange={(e) => e.target.files?.[0] && handle(e.target.files[0])} />
 
@@ -192,7 +178,7 @@ export default function StatementImport({ initialFile, onClose, onImported }: Pr
             </span>
             <button className="btn" onClick={() => setPreview(null)}>Escolher outro</button>
             <button className="btn-primary" disabled={!chosen.length || busy} onClick={confirm}>
-              {busy ? 'Lançando…' : `Lançar ${chosen.length}`}
+              {busy ? <><Spinner label="Lançando" /> Lançando…</> : `Lançar ${chosen.length}`}
             </button>
           </div>
         </div>

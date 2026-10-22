@@ -46,6 +46,8 @@ export interface Split {
   people: number;
   /** What I actually paid. */
   total: number;
+  /** When the others paid me back (ISO yyyy-mm-dd); until then `total − amount` is still to receive. */
+  receivedOn?: string;
 }
 
 export interface CategoryRule {

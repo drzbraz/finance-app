@@ -16,9 +16,24 @@ interface Entry {
 
 const entries = new Map<string, Entry>();
 const listeners = new Map<string, Set<() => void>>();
+const statusListeners = new Set<() => void>();
+
+/** Whether the screen is still waiting for its first data, and whether the server failed to answer. */
+export interface ServerStatus {
+  loading: boolean;
+  error: Error | null;
+}
+
+let status: ServerStatus = { loading: false, error: null };
 
 function notify(key: string): void {
   listeners.get(key)?.forEach((listener) => listener());
+  const loading = [...entries.values()].some((e) => e.data === undefined && !e.error);
+  const error = [...entries.values()].find((e) => e.error)?.error ?? null;
+  if (loading !== status.loading || error !== status.error) {
+    status = { loading, error };
+    statusListeners.forEach((listener) => listener());
+  }
 }
 
 /** Fetches `key`; resolves once the data is at least as new as the moment of the call. */
@@ -54,8 +69,11 @@ function subscribe(key: string, listener: () => void): () => void {
 
 /** The cached value for `key` (undefined until the first response), fetched on first use. */
 export function useQuery<T>(key: string, fetcher: () => Promise<T>): T | undefined {
-  if (!entries.has(key)) entries.set(key, { fetcher, stale: false });
-  else entries.get(key)!.fetcher = fetcher;
+  if (!entries.has(key)) {
+    entries.set(key, { fetcher, stale: false });
+    // A new key counts as loading from the first render, before its fetch starts.
+    queueMicrotask(() => notify(key));
+  } else entries.get(key)!.fetcher = fetcher;
 
   const data = useSyncExternalStore(
     (listener) => subscribe(key, listener),
@@ -69,6 +87,30 @@ export function useQuery<T>(key: string, fetcher: () => Promise<T>): T | undefin
   return data as T | undefined;
 }
 
+/** First load pending anywhere, and the latest failed request (cleared once it succeeds). */
+export function useServerStatus(): ServerStatus {
+  return useSyncExternalStore(
+    (listener) => {
+      statusListeners.add(listener);
+      return () => statusListeners.delete(listener);
+    },
+    () => status,
+  );
+}
+
+/**
+ * Optimistic update: changes the cached value of every key with the prefix right away, so the
+ * screen answers a click at once; the refetch after the write then brings the server's truth
+ * (and undoes the change if the write failed).
+ */
+export function patchQueries<T>(prefix: string, update: (data: T, key: string) => T): void {
+  for (const [key, entry] of entries) {
+    if (!key.startsWith(prefix) || entry.data === undefined) continue;
+    entry.data = update(entry.data as T, key);
+    listeners.get(key)?.forEach((listener) => listener());
+  }
+}
+
 /** Refetches every cached key that starts with one of the prefixes ('' = everything). */
 export async function invalidate(...prefixes: string[]): Promise<void> {
   const keys = [...entries.keys()].filter((key) => prefixes.some((prefix) => key.startsWith(prefix)));
@@ -78,4 +120,5 @@ export async function invalidate(...prefixes: string[]): Promise<void> {
 /** Forgets everything; for tests. */
 export function resetStore(): void {
   entries.clear();
+  status = { loading: false, error: null };
 }

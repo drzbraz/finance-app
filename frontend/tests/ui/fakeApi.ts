@@ -298,7 +298,10 @@ async function route(method: string, path: string, query: URLSearchParams, body:
     case 'PATCH settings': return ok(updateSettings(body));
     case 'GET budgets': return ok(db.budgets.all());
     case 'POST budgets/bulk':
-      for (const x of body.budgets as Budget[]) x.monthlyLimit > 0 ? db.budgets.rows.set(x.category, x) : db.budgets.rows.delete(x.category);
+      for (const x of body.budgets as Budget[]) {
+        if (x.monthlyLimit > 0) db.budgets.rows.set(x.category, x);
+        else db.budgets.rows.delete(x.category);
+      }
       return ok();
     case 'POST budgets/bulk-delete':
       body.categories.forEach((x: string) => db.budgets.rows.delete(x));

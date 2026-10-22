@@ -11,6 +11,7 @@ class CellRefRecord implements CellRef {
 class SplitRecord implements Split {
   @Prop({ type: Number }) people!: number;
   @Prop({ type: Number }) total!: number;
+  @Prop({ type: String }) receivedOn?: string;
 }
 
 /** A transaction; `_id` is its id ("imp-2026-B15" for imported cells). */

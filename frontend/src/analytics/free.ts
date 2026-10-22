@@ -1,6 +1,7 @@
 import type { Budget, RecurringItem, Transaction } from '@finance/shared';
 import { round2 } from '../util';
 import { daysInMonth, isExpected } from './bills';
+import { receivableTotal } from './receivables';
 
 export const GROCERY_CATEGORY = 'Mercado';
 
@@ -17,6 +18,8 @@ export interface FreeToSpend {
   groceryReserveSource: 'budget' | 'average' | 'none';
   /** Variable + additional spending outside Mercado already recorded. */
   otherSpent: number;
+  /** Paid for others on Splitwise this month and not paid back yet: out of my pocket until then. */
+  toReceive: number;
   /** Days left including today (0 outside the current month). */
   daysLeft: number;
   /** free ÷ daysLeft when positive and in the current month. */
@@ -45,7 +48,7 @@ export function groceryReserve(txs: Transaction[], budgets: Budget[], month: num
 
 /**
  * "Livre para gastar": income − fixed bills − investments − groceries − other variable spending
- * already made. For the current month, income/fixed/investments include expected recurring lines
+ * already made − what I paid for others on Splitwise and was not paid back yet. For the current month, income/fixed/investments include expected recurring lines
  * (active, not optional) not recorded yet (at their expected amount) and groceries are reserved up front; past months
  * use what was actually recorded.
  */
@@ -74,7 +77,8 @@ export function freeToSpend(
   const reserve = isCurrent ? groceryReserve(txs, budgets, month) : { amount: 0, source: 'none' as const };
   const groceries = Math.max(groceriesSpent, reserve.amount);
 
-  const free = round2(income - fixed - investment - groceries - otherSpent);
+  const toReceive = receivableTotal(inMonth);
+  const free = round2(income - fixed - investment - groceries - otherSpent - toReceive);
   const daysLeft = isCurrent ? daysInMonth(year, month) - today.getDate() + 1 : 0;
   return {
     free,
@@ -86,6 +90,7 @@ export function freeToSpend(
     groceryReserve: reserve.amount,
     groceryReserveSource: reserve.source,
     otherSpent: round2(otherSpent),
+    toReceive,
     daysLeft,
     perDay: isCurrent && free > 0 && daysLeft > 0 ? round2(free / daysLeft) : null,
     isCurrent,

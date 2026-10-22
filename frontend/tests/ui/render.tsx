@@ -19,8 +19,10 @@ export function freezeToday(date = TODAY) {
   vi.setSystemTime(date);
 }
 
-/** A fresh server (default rules and settings) and an empty client cache, as on a first visit. */
+/** A fresh server (default rules and settings), an empty client cache and a bare URL, as on a first visit. */
 export async function resetDb() {
+  // The app keeps its page and month in the URL hash: every test starts from the bare URL.
+  window.history.replaceState(null, '', '/');
   resetServer();
   resetStore();
   requests.length = 0;

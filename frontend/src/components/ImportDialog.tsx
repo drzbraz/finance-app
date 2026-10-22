@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { totalsByType } from '../analytics/aggregate';
 import { getYearStatus, importBackup, importSpreadsheet, previewSpreadsheet } from '../api/repo';
 import { eur, MONTH_LABELS, round2 } from '../util';
-import { Modal } from './ui';
+import FileDrop from './FileDrop';
+import { Modal, Spinner } from './ui';
 
 interface Props {
   /** A file dropped on the window, handled right away. */
@@ -34,7 +35,6 @@ export default function ImportDialog({ initialFile, onClose, onImported }: Props
   const [backup, setBackup] = useState<{ file: File; data: Backup } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
   const handle = async (file: File) => {
@@ -61,7 +61,6 @@ export default function ImportDialog({ initialFile, onClose, onImported }: Props
 
   useEffect(() => {
     if (initialFile) handle(initialFile);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFile]);
 
   // The year shows at once; whether it already exists is looked up after, keeping only the latest answer.
@@ -106,26 +105,15 @@ export default function ImportDialog({ initialFile, onClose, onImported }: Props
   return (
     <Modal title="Importar" onClose={onClose} wide>
       {!parsed && !backup && (
-        <button
-          type="button"
-          className={`flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition ${dragging ? 'border-accent bg-accent-soft' : 'border-line hover:border-accent'}`}
-          onClick={() => input.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            const f = e.dataTransfer.files[0];
-            if (f) handle(f);
-          }}
-        >
-          <span className="text-4xl" aria-hidden>📄</span>
-          <span className="font-semibold">{busy ? 'Lendo arquivo…' : 'Arraste a planilha aqui ou clique para escolher'}</span>
-          <span className="text-sm text-ink-2">.xlsx exportado do Google Sheets, ou um backup .json do app. O arquivo é lido pelo servidor do app, no seu computador.</span>
-        </button>
+        <FileDrop
+          icon="📄"
+          title="Arraste a planilha aqui ou clique para escolher"
+          busyTitle="Lendo arquivo…"
+          hint=".xlsx exportado do Google Sheets, ou um backup .json do app. O arquivo é lido pelo servidor do app, no seu computador."
+          busy={busy}
+          onPick={() => input.current?.click()}
+          onFile={handle}
+        />
       )}
       <input ref={input} type="file" accept=".xlsx,.json" className="hidden" onChange={(e) => e.target.files?.[0] && handle(e.target.files[0])} />
 
@@ -150,7 +138,7 @@ export default function ImportDialog({ initialFile, onClose, onImported }: Props
         <div className="mt-5 flex justify-end gap-2">
           <button className="btn" onClick={() => setParsed(null)}>Escolher outro</button>
           <button className="btn-primary" disabled={parsed.year === '' || busy} onClick={confirm}>
-            {busy ? 'Importando…' : parsed.existing ? `Substituir ${parsed.year}` : `Importar ${parsed.year}`}
+            {busy ? <><Spinner label="Importando" /> Importando…</> : parsed.existing ? `Substituir ${parsed.year}` : `Importar ${parsed.year}`}
           </button>
         </div>
       )}

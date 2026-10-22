@@ -16,6 +16,12 @@ import { useBudgets, useGoals, useSettings, useStoredRecurring, useToday, useYea
 import type { ChartColors } from '../theme';
 import { brl, eur, MONTH_LABELS, MONTH_NAMES, pct } from '../util';
 import { saveTransactions } from '../api/repo';
+import { pendingReceivables, receivableTotal } from '../analytics/receivables';
+import { unusualCategories } from '../analytics/unusual';
+import { FreeBreakdown, Kpi, Section } from '../components/home/parts';
+import Receivables from '../components/Receivables';
+import SpendCalendar from '../components/SpendCalendar';
+import Unusual from '../components/Unusual';
 
 interface Props {
   year: number;
@@ -24,6 +30,8 @@ interface Props {
   onPage: (p: PageId) => void;
   onAdd: () => void;
   onImport: () => void;
+  /** Opens Transações on one category of the month. */
+  onCategory?: (category: string) => void;
 }
 
 const TONE: Record<InsightTone, string> = {
@@ -33,30 +41,10 @@ const TONE: Record<InsightTone, string> = {
   bad: 'border-bad/30 bg-bad/5',
 };
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'good' | 'bad' }) {
-  return (
-    <div className="card">
-      <p className="label">{label}</p>
-      <p className={`num mt-1 text-2xl font-bold tracking-tight ${tone === 'bad' ? 'text-bad' : tone === 'good' ? 'text-good' : ''}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-ink-2">{sub}</p>}
-    </div>
-  );
-}
-
-function Section({ title, action, children, className = '' }: { title: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return (
-    <section className={`card ${className}`}>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-export default function Home({ year, month, colors, onPage, onAdd, onImport }: Props) {
+export default function Home({ year, month, colors, onPage, onAdd, onImport, onCategory }: Props) {
   const txs = useYearTransactions(year);
+  // January compares with the end of last year.
+  const lastYear = useYearTransactions(year - 1);
   const today = useToday();
   // "Próximas contas" is about today, whatever year is selected.
   const todayYear = today.getFullYear();
@@ -89,6 +77,10 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
   const top = topExpenses(txs, month);
   const pace = monthPace(txs, year, month, today);
   const flow = moneyFlow(txs, month);
+  const unusual = useMemo(() => unusualCategories([...lastYear, ...txs], year, month, today), [lastYear, txs, year, month, today]);
+  const pending = pendingReceivables(txs);
+  // A past month's saldo also waits for what others still owe from it.
+  const monthSaldo = bal[month - 1] - receivableTotal(txs, month);
   const recent = [...txs].sort((a, b) => (b.updatedAt ?? b.date ?? '').localeCompare(a.updatedAt ?? a.date ?? '')).slice(0, 5);
 
   if (txs.length === 0) {
@@ -142,9 +134,9 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
         ) : (
           <Kpi
             label="Saldo do mês"
-            value={eur.format(bal[month - 1])}
-            sub={`Acumulado no ano: ${eur.format(cum[month - 1])}`}
-            tone={bal[month - 1] < 0 ? 'bad' : 'good'}
+            value={eur.format(monthSaldo)}
+            sub={`Acumulado no ano: ${eur.format(cum[month - 1])}${monthSaldo !== bal[month - 1] ? ` · ${eur.format(bal[month - 1] - monthSaldo)} a receber` : ''}`}
+            tone={monthSaldo < 0 ? 'bad' : 'good'}
           />
         )}
         <Kpi
@@ -171,30 +163,12 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
         </button>
       </div>
 
-      {free.isCurrent && showFree && (
-        <section className="card text-sm">
-          <h2 className="mb-2 font-semibold">Como chegamos em {eur.format(free.free)}</h2>
-          <ul className="num space-y-1">
-            <li className="flex justify-between"><span>Receita do mês</span><span className="text-good">+{eur.format(free.income)}</span></li>
-            <li className="flex justify-between"><span>Contas fixas</span><span>−{eur.format(free.fixed)}</span></li>
-            <li className="flex justify-between"><span>Investimentos</span><span>−{eur.format(free.investment)}</span></li>
-            <li className="flex justify-between">
-              <span>
-                Mercado {free.groceriesSpent >= free.groceryReserve ? '(já gasto)' : free.groceryReserveSource === 'budget' ? '(reservado: seu limite)' : free.groceryReserveSource === 'average' ? '(reservado: sua média)' : ''}
-                {free.groceriesSpent > 0 && free.groceriesSpent < free.groceryReserve && <span className="text-ink-3"> · gasto até agora {eur.format(free.groceriesSpent)}</span>}
-              </span>
-              <span>−{eur.format(free.groceries)}</span>
-            </li>
-            <li className="flex justify-between"><span>Outros gastos variáveis já feitos</span><span>−{eur.format(free.otherSpent)}</span></li>
-            <li className="flex justify-between border-t border-line pt-1 font-semibold">
-              <span>Livre para gastar</span><span className={free.free < 0 ? 'text-bad' : 'text-good'}>{eur.format(free.free)}</span>
-            </li>
-          </ul>
-          <p className="mt-2 text-xs text-ink-3">
-            Inclui as contas, receitas e investimentos recorrentes que ainda não foram lançados neste mês, pelo valor esperado, menos os marcados como opcionais (veja em Contas).
-            {free.groceryReserveSource !== 'budget' && ' Para reservar um valor fixo de mercado, defina um limite para Mercado em Contas → Limites de gasto.'}
-          </p>
-        </section>
+      {free.isCurrent && showFree && <FreeBreakdown free={free} />}
+
+      {pending.length > 0 && (
+        <Section title="A receber · Splitwise" action={<button className="btn-ghost px-2 py-1 text-xs" onClick={() => onPage('bills')}>Ver em Contas</button>}>
+          <Receivables txs={txs} month={month} limit={4} onMore={() => onPage('bills')} />
+        </Section>
       )}
 
       {cards.length > 0 && (
@@ -253,6 +227,15 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport }: P
               ))}
             </ul>
           )}
+        </Section>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Section title={`Fora do normal · ${MONTH_NAMES[month - 1]}`}>
+          <Unusual rows={unusual} isCurrent={free.isCurrent} onCategory={onCategory} />
+        </Section>
+        <Section title={`Calendário de gastos · ${MONTH_NAMES[month - 1]}`}>
+          <SpendCalendar txs={txs} year={year} month={month} today={today} colors={colors} />
         </Section>
       </div>
 

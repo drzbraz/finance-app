@@ -1,5 +1,6 @@
 import { normalize, TX_TYPES, TYPE_LABELS, type Transaction, type TxType } from '@finance/shared';
 import { useMemo, useState } from 'react';
+import { receivable } from '../analytics/receivables';
 import { categoryIcon } from '../categories';
 import TransactionSheet from '../components/TransactionSheet';
 import { EmptyState, PageHeader } from '../components/ui';
@@ -8,14 +9,21 @@ import { eur, MONTH_NAMES } from '../util';
 
 const TYPE_SHORT: Record<TxType, string> = { income: 'Receitas', investment: 'Investimentos', fixed: 'Fixas', variable: 'Variáveis', additional: 'Adicionais' };
 
-export default function Transactions({ year, month, onAdd, onImportStatement }: { year: number; month: number; onAdd: () => void; onImportStatement: () => void }) {
+export default function Transactions({ year, month, initialCategory = '', onAdd, onImportStatement }: {
+  year: number;
+  month: number;
+  /** Opened from "Fora do normal": already filtered on that category. */
+  initialCategory?: string;
+  onAdd: () => void;
+  onImportStatement: () => void;
+}) {
   const txs = useYearTransactions(year);
   const rules = useRules();
   const categories = useCategories(rules, txs);
   const [allMonths, setAllMonths] = useState(false);
   const [search, setSearch] = useState('');
   const [types, setTypes] = useState<TxType[]>([]);
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState(initialCategory);
   const [status, setStatus] = useState<'' | 'paid' | 'pending'>('');
   const [tag, setTag] = useState('');
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -84,7 +92,7 @@ export default function Transactions({ year, month, onAdd, onImportStatement }: 
       ) : (
         <div className="space-y-4">
           {[...groups.entries()].map(([date, list]) => (
-            <section key={date}>
+            <section key={date} className="animate-in">
               <h2 className="label mb-1.5 px-1">
                 {new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'long' })}
               </h2>
@@ -104,7 +112,7 @@ export default function Transactions({ year, month, onAdd, onImportStatement }: 
                         <p className="truncate text-xs text-ink-3">
                           {t.category} · {TYPE_LABELS[t.type]}
                           {t.tags.map((x) => ` #${x}`).join('')}
-                          {t.split && ` · Splitwise ÷${t.split.people} de ${eur.format(t.split.total)}`}
+                          {t.split && ` · Splitwise ÷${t.split.people} de ${eur.format(t.split.total)} · ${t.split.receivedOn ? 'recebido' : `a receber ${eur.format(receivable(t))}`}`}
                         </p>
                       </div>
                       <span className={`num text-sm font-semibold ${t.type === 'income' ? 'text-good' : ''}`}>

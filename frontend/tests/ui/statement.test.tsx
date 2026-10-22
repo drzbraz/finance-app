@@ -1,3 +1,4 @@
+import { act } from '@testing-library/react';
 import StatementImport from '../../src/components/StatementImport';
 import { buildStatement } from '../../../backend/src/testing/statement.fixture';
 import { db } from './fakeApi';
@@ -17,14 +18,17 @@ describe('Importar extrato (PDF)', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  const show = () => {
+  /** Renders the dialog and lets its rules load, so that update does not land in the middle of an upload. */
+  const show = async () => {
     const onImported = vi.fn();
     const onClose = vi.fn();
-    return { onImported, onClose, ...setup(<StatementImport onClose={onClose} onImported={onImported} />) };
+    const rendered = setup(<StatementImport onClose={onClose} onImported={onImported} />);
+    await act(async () => {});
+    return { onImported, onClose, ...rendered };
   };
 
   it('splits the lines into ready and to decide, and records the ready ones with one click', async () => {
-    const { user, onImported, onClose } = show();
+    const { user, onImported, onClose } = await show();
     await user.upload(fileInput(), await pdf());
     expect(await screen.findByText('9 movimentos · ActivoBank, 01/09 a 30/09/2026')).toBeInTheDocument();
     expect(screen.getByText('3 prontos para lançar · 6 para você decidir')).toBeInTheDocument();
@@ -57,7 +61,7 @@ describe('Importar extrato (PDF)', () => {
   });
 
   it('records what the user decides, with the type and category they chose', async () => {
-    const { user } = show();
+    const { user } = await show();
     await user.upload(fileInput(), await pdf());
     await screen.findByText(/9 movimentos/);
 
@@ -82,7 +86,7 @@ describe('Importar extrato (PDF)', () => {
   });
 
   it('changing the type of money in to an expense lets the user pick a category', async () => {
-    const { user } = show();
+    const { user } = await show();
     await user.upload(fileInput(), await pdf());
     await screen.findByText(/9 movimentos/);
     const mangopay = line('Mangopay');
@@ -94,7 +98,7 @@ describe('Importar extrato (PDF)', () => {
   });
 
   it('"Marcar todos" ticks a whole section; undo removes what was recorded', async () => {
-    const { user } = show();
+    const { user } = await show();
     await user.upload(fileInput(), await pdf());
     await screen.findByText(/9 movimentos/);
     await user.click(within(section(/^Para você decidir/)).getByRole('button', { name: 'Marcar todos' }));
@@ -105,13 +109,13 @@ describe('Importar extrato (PDF)', () => {
   });
 
   it('a statement imported before shows its lines as already imported, not selectable again', async () => {
-    const first = show();
+    const first = await show();
     await first.user.upload(fileInput(), await pdf());
     await first.user.click(await screen.findByRole('button', { name: 'Lançar 3' }));
     await waitFor(() => expect(first.onImported).toHaveBeenCalled());
     first.unmount();
 
-    const again = show();
+    const again = await show();
     await again.user.upload(fileInput(), await pdf());
     expect(await screen.findByText('0 prontos para lançar · 6 para você decidir · 3 já importados antes')).toBeInTheDocument();
     expect(screen.getByText('Já importados deste extrato · 3')).toBeInTheDocument();
@@ -124,7 +128,7 @@ describe('Importar extrato (PDF)', () => {
   });
 
   it('says so when the file is not a statement it knows', async () => {
-    const { user } = show();
+    const { user } = await show();
     await user.upload(fileInput(), await pdf('outro.pdf', { bank: 'Outro Banco' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/not supported/);
     expect(await db.transactions.count()).toBe(1);

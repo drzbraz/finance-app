@@ -15,7 +15,7 @@ import {
 } from '@finance/shared';
 import { encode, request, requestFile } from './http';
 import { EVERYTHING, keys, TRANSACTIONS } from './keys';
-import { invalidate } from './store';
+import { invalidate, patchQueries } from './store';
 
 /**
  * Everything the screens read from or write to the backend. Writes refresh the cached
@@ -37,14 +37,27 @@ export const fetchRecurring = () => request<RecurringItem[]>('GET', '/recurring'
 
 const transactionsChanged = () => invalidate(TRANSACTIONS, keys.years);
 
-export async function saveTransaction(tx: Transaction): Promise<void> {
-  await request('PUT', `/transactions/${encode(tx.id)}`, tx);
-  await transactionsChanged();
+/** Shows saved entries at once in every cached year (replacing, adding or moving them between years). */
+function showSaved(saved: Transaction[]): void {
+  const byId = new Map(saved.map((t) => [t.id, t]));
+  patchQueries<Transaction[]>(TRANSACTIONS, (list, key) => {
+    const year = Number(key.slice(TRANSACTIONS.length));
+    return [...list.filter((t) => !byId.has(t.id)), ...saved.filter((t) => t.year === year && !t.deleted)];
+  });
 }
 
-export async function saveTransactions(transactions: Transaction[]): Promise<void> {
-  await request('POST', '/transactions/bulk', { transactions });
-  await transactionsChanged();
+export async function saveTransaction(tx: Transaction): Promise<void> {
+  await saveTransactions([tx], 'PUT');
+}
+
+export async function saveTransactions(transactions: Transaction[], method: 'PUT' | 'POST' = 'POST'): Promise<void> {
+  showSaved(transactions);
+  try {
+    if (method === 'PUT') await request('PUT', `/transactions/${encode(transactions[0].id)}`, transactions[0]);
+    else await request('POST', '/transactions/bulk', { transactions });
+  } finally {
+    await transactionsChanged();
+  }
 }
 
 /** Imported rows are soft-deleted on the server (the export clears their cell); new rows are removed. */

@@ -29,6 +29,16 @@ describe('/api/transactions', () => {
     await api(app).put('/api/transactions/x').send({ ...tx({ id: 'x' }), type: 'other' }).expect(400);
     await api(app).put('/api/transactions/x').send({ ...tx({ id: 'x' }), source: { sheet: 'S', cell: 'nope' } }).expect(400);
     await api(app).put('/api/transactions/y').send(tx({ id: 'x' })).expect(400);
+    await api(app).put('/api/transactions/x').send({ ...tx({ id: 'x' }), year: 3000 }).expect(400);
+    await api(app).put('/api/transactions/x').send({ ...tx({ id: 'x' }), amount: 1e12 }).expect(400);
+    await api(app).put('/api/transactions/x').send({ ...tx({ id: 'x' }), updatedAt: 'yesterday' }).expect(400);
+    await api(app).put('/api/transactions/x').send({ ...tx({ id: 'x' }), split: { people: 2, total: 20, receivedOn: '22/10' } }).expect(400);
+  });
+
+  it('keeps when a Splitwise split was paid back', async () => {
+    const split = { people: 2, total: 20, receivedOn: '2026-10-22' };
+    await api(app).put('/api/transactions/x').send({ ...tx({ id: 'x', amount: 10 }), split }).expect(200);
+    expect((await list())[0].split).toEqual(split);
   });
 
   it('strips fields that are not part of a transaction', async () => {

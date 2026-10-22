@@ -32,42 +32,6 @@ export function topExpenses(txs: Transaction[], month: number, n = 5): Transacti
   return txs.filter((t) => isExpense(t) && t.month === month).sort((a, b) => b.amount - a.amount).slice(0, n);
 }
 
-export interface CategoryDeviation {
-  category: string;
-  current: number;
-  previous: number;
-  /** mean of the earlier months that have data */
-  average: number;
-  /** (current − average) / average; null when there is no history */
-  deviation: number | null;
-  /** current vs previous month */
-  momChange: number | null;
-  flagged: boolean;
-}
-
-/**
- * Compares each category's spend in `month` with the previous month and with the average of
- * the earlier months of the year that had any expense at all. Flags |deviation| > threshold.
- */
-export function categoryDeviation(txs: Transaction[], month: number, threshold = 0.3): CategoryDeviation[] {
-  const activeMonths = new Set(txs.filter((t) => isExpense(t) && t.month < month).map((t) => t.month));
-  const cats = new Set(txs.filter((t) => isExpense(t) && t.month <= month).map((t) => t.category || 'Outros'));
-  const sum = (cat: string, m: number) =>
-    txs.filter((t) => isExpense(t) && t.month === m && (t.category || 'Outros') === cat).reduce((a, t) => a + t.amount, 0);
-
-  const out: CategoryDeviation[] = [];
-  for (const category of cats) {
-    const current = round2(sum(category, month));
-    const previous = round2(sum(category, month - 1));
-    const history = [...activeMonths].map((m) => sum(category, m));
-    const average = history.length ? round2(history.reduce((a, b) => a + b, 0) / history.length) : 0;
-    const deviation = average > 0 ? (current - average) / average : null;
-    const momChange = previous > 0 ? (current - previous) / previous : null;
-    out.push({ category, current, previous, average, deviation, momChange, flagged: deviation !== null && Math.abs(deviation) > threshold });
-  }
-  return out.sort((a, b) => b.current - a.current);
-}
-
 export interface GoalProgress {
   currentBRL: number;
   goalBRL: number;

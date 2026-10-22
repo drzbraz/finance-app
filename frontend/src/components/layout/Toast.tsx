@@ -33,7 +33,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 flex flex-col items-center gap-2 px-4 lg:bottom-6" aria-live="polite">
         {items.map((t) => (
-          <div key={t.id} className="pointer-events-auto flex items-center gap-3 rounded-xl bg-ink px-4 py-2.5 text-sm text-canvas shadow-lg">
+          <div key={t.id} className="animate-pop pointer-events-auto flex items-center gap-3 rounded-xl bg-ink px-4 py-2.5 text-sm text-canvas shadow-lg">
             <span>{t.text}</span>
             {t.undo && (
               <button

@@ -4,6 +4,7 @@ import { billsForMonth, isoDate, mergeRecurring, startedMonthTxs, startMonthTxs,
 import { categoryIcon } from '../categories';
 import { useToast } from '../components/layout/Toast';
 import BillSheet from '../components/BillSheet';
+import Receivables from '../components/Receivables';
 import SpendingLimits from '../components/SpendingLimits';
 import { EmptyState, PageHeader, PaidCheck, ProgressBar } from '../components/ui';
 import { useRules, useStoredRecurring, useToday, useYearTransactions } from '../hooks';
@@ -139,6 +140,15 @@ export default function Bills({ year, month }: { year: number; month: number }) 
 
       {counted.length > 0 && <div className="mb-5"><ProgressBar value={done / counted.length} label="Contas feitas" /></div>}
 
+      {txs.some((t) => t.split) && (
+        <section className="mb-5" aria-label="A receber do Splitwise">
+          <h2 className="label mb-1.5 px-1">A receber · Splitwise</h2>
+          <div className="card">
+            <Receivables txs={txs} month={month} />
+          </div>
+        </section>
+      )}
+
       <div className="mb-5">
         <SpendingLimits txs={txs} year={year} month={month} />
       </div>
@@ -156,7 +166,7 @@ export default function Bills({ year, month }: { year: number; month: number }) 
             const list = bills.filter((b) => b.bucket === id);
             if (!list.length) return null;
             return (
-              <section key={id}>
+              <section key={id} className="animate-in">
                 <h2 className={`label mb-1.5 px-1 ${id === 'overdue' ? 'text-bad' : ''}`}>
                   {title} · {list.length}
                   {hint && <span className="ml-2 font-normal normal-case tracking-normal text-ink-3">{hint}</span>}

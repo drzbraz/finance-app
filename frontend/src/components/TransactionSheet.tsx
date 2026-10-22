@@ -25,7 +25,8 @@ export default function TransactionSheet({ tx, history, onClose }: { tx: Transac
   const save = async () => {
     const typed = parseLooseNumber(amountText);
     if (typed === null) return;
-    const split = splittable && splitPeople !== null && typed > 0 ? { people: splitPeople, total: typed } : undefined;
+    // Editing a split keeps whether it was already paid back.
+    const split = splittable && splitPeople !== null && typed > 0 ? { ...tx.split, people: splitPeople, total: typed } : undefined;
     // Saving replaces the whole entry, so `split: undefined` (dropped from the JSON) un-splits it.
     let next: Transaction = {
       ...draft,

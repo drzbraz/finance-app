@@ -3,7 +3,7 @@ import { eur, pct, round2 } from '../util';
 import { totalsByType } from './aggregate';
 import { billsForMonth, daysInMonth, isExpected } from './bills';
 import { budgetStatus } from './budgets';
-import { categoryDeviation, isExpense, savingsRate } from './metrics';
+import { isExpense, savingsRate } from './metrics';
 
 export interface MonthForecast {
   /** True only for the current month; past/future months report actuals. */
@@ -174,19 +174,6 @@ export function insights({ txs, budgets, recurring, settings, year, month, today
           : `${b.category} já usou ${pct.format(b.pct)} do orçamento`,
       detail: `${eur.format(b.spent)} de ${eur.format(b.limit)}`,
       weight: b.state === 'over' ? 80 : 60,
-    });
-  }
-
-  for (const d of categoryDeviation(txs, month)) {
-    if (!d.flagged || d.deviation === null || d.current <= 0 || d.average < 20) continue;
-    const up = d.deviation > 0;
-    out.push({
-      id: `dev-${d.category}`,
-      tone: up ? 'warning' : 'good',
-      icon: up ? '🔺' : '🔻',
-      title: `${d.category} está ${pct.format(Math.abs(d.deviation))} ${up ? 'acima' : 'abaixo'} da sua média`,
-      detail: `${eur.format(d.current)} este mês vs média de ${eur.format(d.average)}.`,
-      weight: up ? 50 + Math.min(20, d.deviation * 10) : 20,
     });
   }
 

@@ -5,7 +5,10 @@ import { ToastProvider } from './components/layout/Toast';
 import ImportDialog from './components/ImportDialog';
 import QuickAdd from './components/QuickAdd';
 import StatementImport from './components/StatementImport';
-import { useSettings, useYears, useYearTransactions } from './hooks';
+import { EVERYTHING } from './api/keys';
+import { invalidate, useServerStatus } from './api/store';
+import { PageSkeleton, Spinner } from './components/ui';
+import { useSettings, useYears, useYearTransactions, useYearTransactionsLoading } from './hooks';
 import Bills from './pages/Bills';
 import Budgets from './pages/Budgets';
 import Compare from './pages/Compare';
@@ -13,6 +16,7 @@ import Goals from './pages/Goals';
 import Home from './pages/Home';
 import SettingsPage from './pages/Settings';
 import Transactions from './pages/Transactions';
+import { useRoute } from './route';
 import { chartColors, useTheme } from './theme';
 
 function isTyping(e: KeyboardEvent): boolean {
@@ -34,15 +38,26 @@ function Main() {
   const settings = useSettings();
   const theme = useTheme(settings.theme);
   const colors = chartColors(theme);
-  const [page, setPage] = useState<PageId>('home');
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [route, navigate] = useRoute({ page: 'home', year: now.getFullYear(), month: now.getMonth() + 1 });
+  const { page, year, month } = route;
+  const setPage = (p: PageId) => navigate({ page: p });
+  const setYear = (y: number) => navigate({ year: y, ...(route.category && { category: route.category }) });
   const [adding, setAdding] = useState(false);
   // `stay`: importing another year from Comparar keeps you there, on the year you were comparing.
   const [importing, setImporting] = useState<{ file: File | null; stay?: boolean } | null>(null);
   const [statement, setStatement] = useState<{ file: File | null } | null>(null);
   const [dragging, setDragging] = useState(false);
   const history = useYearTransactions(year);
+  const status = useServerStatus();
+  // The first screen waits for the year's entries behind a skeleton instead of flashing "empty".
+  const yearLoaded = useYearTransactionsLoading(year) !== undefined;
+  const loaded = years !== undefined && yearLoaded;
+  const [retrying, setRetrying] = useState(false);
+  const retry = async () => {
+    setRetrying(true);
+    await invalidate(EVERYTHING);
+    setRetrying(false);
+  };
 
   // Start on the latest imported year when the current one has no data.
   useEffect(() => {
@@ -102,10 +117,7 @@ function Main() {
     };
   }, []);
 
-  const go = (y: number, m: number) => {
-    setYear(y);
-    setMonth(m);
-  };
+  const go = (y: number, m: number) => navigate({ year: y, month: m, ...(route.category && { category: route.category }) });
   const openAdd = () => setAdding(true);
   const openImport = () => setImporting({ file: null });
 
@@ -121,13 +133,27 @@ function Main() {
       onAdd={openAdd}
       onImport={openImport}
     >
-      {page === 'home' && <Home year={year} month={month} colors={colors} onPage={setPage} onAdd={openAdd} onImport={openImport} />}
-      {page === 'transactions' && <Transactions year={year} month={month} onAdd={openAdd} onImportStatement={() => setStatement({ file: null })} />}
-      {page === 'bills' && <Bills year={year} month={month} />}
-      {page === 'budgets' && <Budgets year={year} month={month} />}
-      {page === 'goals' && <Goals year={year} />}
-      {page === 'compare' && <Compare year={year} month={month} colors={colors} onImport={() => setImporting({ file: null, stay: true })} />}
-      {page === 'settings' && <SettingsPage />}
+      {status.error && (
+        <div role="alert" className="animate-in mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-bad/30 bg-bad/5 p-3 text-sm">
+          <span className="flex-1">
+            <b>Não consegui falar com o servidor.</b> <span className="text-ink-2">{status.error.message}</span>
+          </span>
+          <button className="btn" onClick={retry} disabled={retrying}>{retrying ? <Spinner label="Tentando" /> : '↻'} Tentar de novo</button>
+        </div>
+      )}
+      {!loaded ? (
+        !status.error && <PageSkeleton />
+      ) : (
+        <div key={page} className="animate-page">
+        {page === 'home' && <Home year={year} month={month} colors={colors} onPage={setPage} onAdd={openAdd} onImport={openImport} onCategory={(category) => navigate({ page: 'transactions', category })} />}
+        {page === 'transactions' && <Transactions key={route.category ?? ''} year={year} month={month} initialCategory={route.category} onAdd={openAdd} onImportStatement={() => setStatement({ file: null })} />}
+        {page === 'bills' && <Bills year={year} month={month} />}
+        {page === 'budgets' && <Budgets year={year} month={month} />}
+        {page === 'goals' && <Goals year={year} />}
+        {page === 'compare' && <Compare year={year} month={month} colors={colors} onImport={() => setImporting({ file: null, stay: true })} />}
+        {page === 'settings' && <SettingsPage />}
+        </div>
+      )}
 
       {adding && <QuickAdd year={year} month={month} history={history} onClose={() => setAdding(false)} />}
       {importing && (

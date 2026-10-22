@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { downloadBlob, XLSX_MIME } from '../download';
 import { useClearToasts, useToast } from './layout/Toast';
+import { Spinner } from './ui';
 import { exportBackup, exportYearXlsx } from '../api/repo';
 
 /** "Exportar" button: xlsx in the original layout, or a JSON backup. */
@@ -43,11 +44,11 @@ export default function ExportMenu({ year, compact = false }: { year: number; co
   return (
     <div className="relative" ref={ref}>
       <button className="btn" onClick={() => setOpen(!open)} disabled={busy} aria-haspopup="menu" aria-expanded={open}>
-        <span aria-hidden>⬇︎</span>
+        {busy ? <Spinner label="Exportando" /> : <span aria-hidden>⬇︎</span>}
         {!compact && <span>{busy ? 'Exportando…' : 'Exportar'}</span>}
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-30 mt-2 w-72 rounded-2xl border border-line bg-surface p-1.5 shadow-xl">
+        <div role="menu" className="animate-pop absolute right-0 z-30 mt-2 w-72 rounded-2xl border border-line bg-surface p-1.5 shadow-xl">
           <button role="menuitem" className="w-full rounded-xl px-3 py-2.5 text-left hover:bg-surface-2" onClick={xlsx}>
             <div className="text-sm font-medium">📊 Planilha {year} (.xlsx)</div>
             <div className="text-xs text-ink-3">Mesmo layout do Google Sheets, com verde de pago e comentários</div>

@@ -18,13 +18,13 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
     (root?.querySelector<HTMLElement>('[data-autofocus]') ?? root?.querySelector<HTMLElement>('input, select, textarea') ?? root?.querySelector<HTMLElement>('button'))?.focus();
   }, []);
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-4" onMouseDown={onClose}>
+    <div className="animate-fade fixed inset-0 z-40 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-4" onMouseDown={onClose}>
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-line bg-surface p-5 shadow-2xl sm:rounded-3xl ${wide ? 'sm:max-w-2xl' : 'sm:max-w-md'}`}
+        className={`animate-pop max-h-[92vh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-line bg-surface p-5 shadow-2xl sm:rounded-3xl ${wide ? 'sm:max-w-2xl' : 'sm:max-w-md'}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -41,12 +41,12 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   useEscape(onClose);
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/40" onMouseDown={onClose}>
+    <div className="animate-fade fixed inset-0 z-40 flex justify-end bg-black/40" onMouseDown={onClose}>
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="h-full w-full overflow-y-auto border-l border-line bg-surface p-5 shadow-2xl sm:max-w-md"
+        className="animate-sheet h-full w-full overflow-y-auto overscroll-contain border-l border-line bg-surface p-5 shadow-2xl sm:max-w-md"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -63,7 +63,7 @@ export function ProgressBar({ value, tone = 'accent', label }: { value: number; 
   const color = tone === 'bad' ? 'bg-bad' : tone === 'warn' ? 'bg-warn' : 'bg-accent';
   return (
     <div className="h-2 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-valuenow={Math.round(value * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
-      <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }} />
+      <div className={`h-full rounded-full ${color} transition-all duration-500 ease-out`} style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }} />
     </div>
   );
 }
@@ -131,5 +131,39 @@ export function PaidCheck({ checked, onChange, label }: { checked: boolean; onCh
     >
       {checked ? '✓' : ''}
     </button>
+  );
+}
+
+/** A small spinning ring, in the text colour; for buttons and lines that are working. */
+export function Spinner({ label = 'Carregando' }: { label?: string }) {
+  return <span className="spinner" role="status" aria-label={label} />;
+}
+
+/** The page's shape in shimmering blocks while its first data loads, so nothing jumps when it arrives. */
+export function PageSkeleton() {
+  return (
+    <div className="animate-fade space-y-4" aria-busy="true" aria-label="Carregando">
+      <div className="space-y-2">
+        <div className="skeleton h-7 w-48" />
+        <div className="skeleton h-4 w-72" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="card space-y-2">
+            <div className="skeleton h-3 w-24" />
+            <div className="skeleton h-7 w-32" />
+            <div className="skeleton h-3 w-20" />
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {[0, 1].map((i) => (
+          <div key={i} className="card space-y-3">
+            <div className="skeleton h-4 w-40" />
+            <div className="skeleton h-40 w-full" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

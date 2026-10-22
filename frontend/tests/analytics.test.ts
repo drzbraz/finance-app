@@ -2,7 +2,6 @@ import { cumulative, expenseTotals, monthlyGrid, saldo, totalsByType } from '../
 import { monthChecklist } from '../src/analytics/checklist';
 import {
   byCategory,
-  categoryDeviation,
   goalProgress,
   pending,
   savingsRate,
@@ -97,20 +96,6 @@ describe('metrics', () => {
 
   it('topExpenses ignores income and other months', () => {
     expect(topExpenses(year, 1, 2).map((x) => x.amount)).toEqual([900, 0.2]);
-  });
-
-  it('categoryDeviation compares with the previous month and the average', () => {
-    const txs = [
-      tx({ month: 1, amount: 100, category: 'Lazer' }),
-      tx({ month: 2, amount: 100, category: 'Lazer' }),
-      tx({ month: 3, amount: 200, category: 'Lazer' }),
-      tx({ month: 3, amount: 50, category: 'Novo' }),
-    ];
-    const [lazer, novo] = categoryDeviation(txs, 3);
-    expect(lazer).toMatchObject({ category: 'Lazer', current: 200, previous: 100, average: 100, deviation: 1, momChange: 1, flagged: true });
-    // Months with no expenses at all do not drag the average down; a new category has no history.
-    expect(novo).toMatchObject({ category: 'Novo', average: 0, deviation: null, momChange: null, flagged: false });
-    expect(categoryDeviation(txs, 2)[0]).toMatchObject({ deviation: 0, flagged: false });
   });
 
   it('goalProgress converts EU patrimony and projects months left', () => {
