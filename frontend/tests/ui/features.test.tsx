@@ -123,6 +123,16 @@ describe('App: URL, loading and errors', () => {
     expect(screen.queryByText('Salário')).not.toBeInTheDocument();
   });
 
+  it('an error on a page you left does not follow you, and a server error says so', async () => {
+    const { user } = setup(<App />);
+    await screen.findByRole('heading', { name: 'Outubro 2026' });
+    await user.click(within(sidebar()).getByRole('button', { name: /Comparar/ }));
+    expect(await screen.findByText('Importe outro ano para comparar')).toBeInTheDocument();
+    await user.click(within(sidebar()).getByRole('button', { name: /Início/ }));
+    await screen.findByRole('heading', { name: 'Outubro 2026' });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('shows a skeleton while loading, and a retry when the server does not answer', async () => {
     let down = true;
     globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) =>

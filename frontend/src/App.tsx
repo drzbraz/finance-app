@@ -5,6 +5,7 @@ import { ToastProvider } from './components/layout/Toast';
 import ImportDialog from './components/ImportDialog';
 import QuickAdd from './components/QuickAdd';
 import StatementImport from './components/StatementImport';
+import { ApiError } from './api/http';
 import { EVERYTHING } from './api/keys';
 import { invalidate, useServerStatus } from './api/store';
 import { PageSkeleton, Spinner } from './components/ui';
@@ -136,7 +137,8 @@ function Main() {
       {status.error && (
         <div role="alert" className="animate-in mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-bad/30 bg-bad/5 p-3 text-sm">
           <span className="flex-1">
-            <b>Não consegui falar com o servidor.</b> <span className="text-ink-2">{status.error.message}</span>
+            <b>{status.error instanceof ApiError && status.error.status > 0 ? 'O servidor não conseguiu carregar os dados.' : 'Não consegui falar com o servidor.'}</b>{' '}
+            <span className="text-ink-2">{status.error.message}</span>
           </span>
           <button className="btn" onClick={retry} disabled={retrying}>{retrying ? <Spinner label="Tentando" /> : '↻'} Tentar de novo</button>
         </div>

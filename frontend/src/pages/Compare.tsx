@@ -23,7 +23,7 @@ export default function Compare({ year, month, colors, onImport }: { year: numbe
   const older = years.filter((y) => y < year);
   const [base, setBase] = useState<number | null>(null);
   const a = base && older.includes(base) ? base : older[older.length - 1];
-  const txA = useYearTransactions(a ?? 0);
+  const txA = useYearTransactions(a ?? null);
   const txB = useYearTransactions(year);
   // For the current year, "same period" stops at today's month (pending entries for later months don't count).
   const now = new Date();

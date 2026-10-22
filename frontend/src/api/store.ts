@@ -28,8 +28,14 @@ let status: ServerStatus = { loading: false, error: null };
 
 function notify(key: string): void {
   listeners.get(key)?.forEach((listener) => listener());
-  const loading = [...entries.values()].some((e) => e.data === undefined && !e.error);
-  const error = [...entries.values()].find((e) => e.error)?.error ?? null;
+  updateStatus();
+}
+
+/** Only keys a screen is showing count: a failed fetch for a page you left no longer raises the banner. */
+function updateStatus(): void {
+  const shown = [...entries].filter(([key]) => (listeners.get(key)?.size ?? 0) > 0).map(([, entry]) => entry);
+  const loading = shown.some((e) => e.data === undefined && !e.error);
+  const error = shown.find((e) => e.error)?.error ?? null;
   if (loading !== status.loading || error !== status.error) {
     status = { loading, error };
     statusListeners.forEach((listener) => listener());
@@ -64,22 +70,39 @@ async function load(key: string): Promise<void> {
 function subscribe(key: string, listener: () => void): () => void {
   if (!listeners.has(key)) listeners.set(key, new Set());
   listeners.get(key)!.add(listener);
-  return () => listeners.get(key)!.delete(listener);
+  scheduleStatus();
+  return () => {
+    listeners.get(key)!.delete(listener);
+    scheduleStatus();
+  };
 }
 
-/** The cached value for `key` (undefined until the first response), fetched on first use. */
-export function useQuery<T>(key: string, fetcher: () => Promise<T>): T | undefined {
-  if (!entries.has(key)) {
+let statusScheduled = false;
+
+/** React re-subscribes on every render (unsubscribe, then subscribe): judge once things settle. */
+function scheduleStatus(): void {
+  if (statusScheduled) return;
+  statusScheduled = true;
+  queueMicrotask(() => {
+    statusScheduled = false;
+    updateStatus();
+  });
+}
+
+/** The cached value for `key` (undefined until the first response), fetched on first use; a null key fetches nothing. */
+export function useQuery<T>(key: string | null, fetcher: () => Promise<T>): T | undefined {
+  if (key !== null && !entries.has(key)) {
     entries.set(key, { fetcher, stale: false });
     // A new key counts as loading from the first render, before its fetch starts.
     queueMicrotask(() => notify(key));
-  } else entries.get(key)!.fetcher = fetcher;
+  } else if (key !== null) entries.get(key)!.fetcher = fetcher;
 
   const data = useSyncExternalStore(
-    (listener) => subscribe(key, listener),
-    () => entries.get(key)?.data,
+    (listener) => (key === null ? () => {} : subscribe(key, listener)),
+    () => (key === null ? undefined : entries.get(key)?.data),
   );
   useEffect(() => {
+    if (key === null) return;
     const entry = entries.get(key);
     // First use, or a retry after a failed request (e.g. the server was down).
     if (entry && (entry.data === undefined || entry.error)) void load(key);

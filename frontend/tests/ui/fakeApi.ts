@@ -272,6 +272,13 @@ async function previewStatement(body: unknown) {
   return { bank: statement.bank, fileName, from: statement.from, to: statement.to, rows };
 }
 
+/** Same as the backend's ParseYearPipe. */
+function parseYear(value: string | null): number {
+  const year = Number(value);
+  if (!Number.isInteger(year) || year < 1900 || year > 2100) throw new HttpError(400, `Invalid year: ${value}`);
+  return year;
+}
+
 async function route(method: string, path: string, query: URLSearchParams, body: any): Promise<Reply> {
   const p = path.split('/').filter(Boolean).map(decodeURIComponent);
   const b = p[1];
@@ -281,7 +288,7 @@ async function route(method: string, path: string, query: URLSearchParams, body:
 
   switch (literal) {
     case 'GET health': return ok({ status: 'ok' });
-    case 'GET transactions': return ok(live(Number(query.get('year'))));
+    case 'GET transactions': return ok(live(parseYear(query.get('year'))));
     case 'POST transactions/bulk': return ok(saveStamped(body.transactions));
     case 'POST transactions/bulk-delete':
       removeTransactions(body.ids.map((id: string) => db.transactions.rows.get(id)).filter(Boolean));

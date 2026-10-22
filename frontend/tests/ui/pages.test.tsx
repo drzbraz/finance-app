@@ -1,6 +1,5 @@
 import { fireEvent } from '@testing-library/react';
-import { db } from './fakeApi';
-import { getSettings } from './fakeApi';
+import { db, getSettings, requests } from './fakeApi';
 import Budgets from '../../src/pages/Budgets';
 import Compare from '../../src/pages/Compare';
 import Goals from '../../src/pages/Goals';
@@ -152,6 +151,8 @@ describe('Comparar', () => {
     await seed({ txs: [{ month: 1, amount: 10 }] });
     const { user } = show();
     expect(await screen.findByText('Importe outro ano para comparar')).toBeInTheDocument();
+    // No other year: nothing is asked for it (a "year 0" request would be refused by the server).
+    expect(requests.filter((r) => r.path.startsWith('/transactions')).map((r) => r.path)).not.toContainEqual(expect.stringMatching(/year=0/));
     await user.click(screen.getByRole('button', { name: /Importar outro ano/ }));
     expect(onImport).toHaveBeenCalledOnce();
   });

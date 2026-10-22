@@ -14,14 +14,14 @@ import { useQuery } from './api/store';
 
 const NONE: never[] = [];
 
-/** The year's live transactions (the server leaves soft-deleted rows out). */
-export function useYearTransactions(year: number): Transaction[] {
+/** The year's live transactions (the server leaves soft-deleted rows out); null = no year, nothing fetched. */
+export function useYearTransactions(year: number | null): Transaction[] {
   return useYearTransactionsLoading(year) ?? NONE;
 }
 
 /** Same as useYearTransactions, but `undefined` while loading (for empty states). */
-export function useYearTransactionsLoading(year: number): Transaction[] | undefined {
-  return useQuery(keys.transactions(year), () => fetchTransactions(year));
+export function useYearTransactionsLoading(year: number | null): Transaction[] | undefined {
+  return useQuery(year === null ? null : keys.transactions(year), () => fetchTransactions(year!));
 }
 
 /** `undefined` while loading. */
