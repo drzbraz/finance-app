@@ -69,6 +69,29 @@ describe('Início', () => {
     expect(line(/Outros gastos variáveis/)).toHaveTextContent(/−50,00\s€/);
   });
 
+  it('labels the forecast as spending and warns when "Livre para gastar" is positive but the month closes negative', async () => {
+    // A trip in August: 9000 / 31 + September 400 / 30 → ~151,83 €/day for the 9 days left.
+    const AUG = [{ id: 'a-trip', month: 8, description: 'viagem', amount: 9000, category: 'Viagem' }];
+    await seed({ txs: [...OCT, ...SEPT, ...AUG], budgets: [{ category: 'Mercado', monthlyLimit: 250 }] });
+    const { user } = show();
+    await waitFor(() => expect(kpi('Livre para gastar')).toHaveTextContent(/900,00\s€/));
+    // 700 rent + 150 so far + ~1366,45 € expected → closes at 2200 − 300 − 2216,45.
+    expect(screen.getByText(/Gastos previstos no mês: 2216,45\s€/)).toBeInTheDocument();
+    const warning = screen.getByRole('status');
+    expect(warning).toHaveTextContent(/sobram 900,00\s€ livres hoje.*~151,83\s€\/dia.*fecha em -316,45\s€/);
+
+    await user.click(within(warning).getByRole('button', { name: /Ver a conta/ }));
+    const box = screen.getByRole('heading', { name: /Como chegamos em 900,00/ }).closest('section')!;
+    expect(box).toHaveTextContent(/não desconta o que você ainda vai gastar.*~1366,45\s€ até o fim do mês.*fecharia em -316,45\s€/);
+  });
+
+  it('no warning when the month closes positive by the average', async () => {
+    await seed({ txs: [...OCT, ...SEPT], budgets: [{ category: 'Mercado', monthlyLimit: 250 }] });
+    show();
+    await waitFor(() => expect(kpi('Livre para gastar')).toHaveTextContent(/900,00\s€/));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
   it('without a Mercado limit, the grocery reserve is the average of earlier months', async () => {
     await seed({ txs: [...OCT, ...SEPT] });
     const { user } = show();

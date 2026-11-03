@@ -24,24 +24,27 @@ export interface MonthForecast {
 }
 
 /**
- * Typical variable + additional spend per day: the average of the earlier months of the year
- * that have any such spending (months with none usually just weren't logged), per calendar day.
+ * Typical variable + additional spend per day: the average of the last `history` months before
+ * this one that have any such spending (months with none usually just weren't logged), per
+ * calendar day. Looks across the year boundary when given last year's entries too.
  */
-export function typicalDailyFlexible(txs: Transaction[], year: number, month: number): number | null {
+export function typicalDailyFlexible(txs: Transaction[], year: number, month: number, history = 3): number | null {
+  const target = year * 12 + month - 1;
   const monthly = new Map<number, number>();
   for (const t of txs) {
-    if (t.month >= month || (t.type !== 'variable' && t.type !== 'additional')) continue;
-    monthly.set(t.month, (monthly.get(t.month) ?? 0) + t.amount);
+    const k = t.year * 12 + t.month - 1;
+    if (k >= target || (t.type !== 'variable' && t.type !== 'additional')) continue;
+    monthly.set(k, (monthly.get(k) ?? 0) + t.amount);
   }
-  const months = [...monthly.entries()].filter(([, v]) => v > 0);
+  const months = [...monthly.entries()].filter(([, v]) => v > 0).sort(([a], [b]) => b - a).slice(0, history);
   if (!months.length) return null;
-  const perDay = months.map(([m, v]) => v / daysInMonth(year, m));
+  const perDay = months.map(([k, v]) => v / daysInMonth(Math.floor(k / 12), (k % 12) + 1));
   return perDay.reduce((a, b) => a + b, 0) / perDay.length;
 }
 
 /**
  * Month-end projection. Variable and additional spending = what is already spent + the typical
- * daily spend (from earlier months) for the days left, so one big one-off (a dentist bill) is
+ * daily spend (last 3 months; pass last year's entries too for January) for the days left, so one big one-off (a dentist bill) is
  * not multiplied by the rest of the month. Without history it falls back to this month's pace.
  * Fixed bills, income and investments use what is recorded plus the expected amount of the
  * recurring items the month expects (active, not optional) that are not recorded yet.
@@ -53,7 +56,7 @@ export function forecastMonth(
   month: number,
   today: Date,
 ): MonthForecast {
-  const inMonth = txs.filter((t) => t.month === month);
+  const inMonth = txs.filter((t) => t.year === year && t.month === month);
   const sum = (f: (t: Transaction) => boolean) => inMonth.filter(f).reduce((a, t) => a + t.amount, 0);
   const spentSoFar = round2(sum(isExpense));
   const income = sum((t) => t.type === 'income');

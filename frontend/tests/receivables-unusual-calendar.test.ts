@@ -38,25 +38,28 @@ describe('Splitwise a receber', () => {
 describe('Fora do normal', () => {
   const months = (category: string, amounts: [number, number][]) => amounts.map(([month, amount]) => tx({ month, amount, category }));
 
-  it('flags a category above its usual pace by now, by ratio and by euros', () => {
+  it('compares the month so far with a whole average month of the last 3, by ratio and by euros', () => {
     const txs = [
       ...months('Restaurante', [[7, 100], [8, 100], [9, 100]]),
       ...months('Mercado', [[7, 300], [8, 300], [9, 300]]),
       ...months('Café', [[7, 10], [8, 10], [9, 10]]),
-      tx({ month: 10, amount: 120, category: 'Restaurante' }), // usual by the 15th ≈ 48
-      tx({ month: 10, amount: 160, category: 'Mercado' }), // usual by now ≈ 145: within normal
-      tx({ month: 10, amount: 15, category: 'Café' }), // +200% but only ~10 € more: not worth a ping
+      ...months('Lazer', [[6, 999], [7, 50], [8, 50], [9, 50]]), // June is past the 3 months
+      tx({ month: 10, amount: 140, category: 'Restaurante' }),
+      tx({ month: 10, amount: 320, category: 'Mercado' }), // within 30% of its usual
+      tx({ month: 10, amount: 30, category: 'Café' }), // +200% but only 20 € more... exactly the floor
+      tx({ month: 10, amount: 90, category: 'Lazer' }),
+      tx({ month: 10, amount: 80, category: 'Viagem' }),
     ];
-    const rows = unusualCategories(txs, 2026, 10, day('2026-10-15'));
-    expect(rows.map((r) => r.category)).toEqual(['Restaurante']);
-    expect(rows[0]).toMatchObject({ spent: 120, usual: 100, expected: 48.39 });
-    expect(rows[0].above).toBeCloseTo(120 / 48.39 - 1, 3);
+    const rows = unusualCategories(txs, 2026, 10);
+    expect(rows.map((r) => [r.category, r.above === null ? null : Math.round(r.above * 100)])).toEqual([['Viagem', null], ['Restaurante', 40], ['Lazer', 80], ['Café', 200]]);
+    expect(rows.find((r) => r.category === 'Lazer')).toMatchObject({ spent: 90, usual: 50, months: 3 });
+    expect(unusualCategories(txs.map((t) => (t.category === 'Café' && t.month === 10 ? { ...t, amount: 29 } : t)), 2026, 10).map((r) => r.category)).not.toContain('Café');
   });
 
-  it('a closed month compares with the whole usual month; a new category with real money shows up', () => {
-    const txs = [...months('Lazer', [[7, 50], [8, 50], [9, 50]]), tx({ month: 10, amount: 90, category: 'Lazer' }), tx({ month: 10, amount: 80, category: 'Viagem' })];
-    const rows = unusualCategories(txs, 2026, 10, day('2026-12-01'));
-    expect(rows.map((r) => [r.category, r.above === null ? null : Math.round(r.above * 100)])).toEqual([['Viagem', null], ['Lazer', 80]]);
+  it('one dinner early in the month is not flagged against a prorated average', () => {
+    // Bug: on 3 November a 33 € dinner showed "680% acima" of ~4,23 € (42,26 €/month × 3/30).
+    const txs = [...months('Restaurante', [[8, 60.78], [9, 36], [10, 30]]), tx({ month: 11, date: '2026-11-01', amount: 33, category: 'Restaurante' })];
+    expect(unusualCategories(txs, 2026, 11)).toEqual([]);
   });
 
   it('January looks back into last year; months with nothing logged and fixed bills do not count', () => {
@@ -66,8 +69,8 @@ describe('Fora do normal', () => {
       tx({ year: 2026, month: 1, amount: 900, category: 'Casa', type: 'fixed' }),
       tx({ year: 2026, month: 1, amount: 180, category: 'Lazer' }),
     ];
-    expect(unusualCategories(txs, 2026, 1, day('2026-02-10'))).toMatchObject([{ category: 'Lazer', usual: 100 }]);
-    expect(unusualCategories([tx({ month: 1, amount: 500, category: 'Lazer' })], 2026, 1, day('2026-02-01'))).toEqual([]);
+    expect(unusualCategories(txs, 2026, 1)).toMatchObject([{ category: 'Lazer', usual: 100 }]);
+    expect(unusualCategories([tx({ month: 1, amount: 500, category: 'Lazer' })], 2026, 1)).toEqual([]);
   });
 });
 

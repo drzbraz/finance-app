@@ -69,13 +69,13 @@ describe('A receber · Splitwise', () => {
 describe('Fora do normal e calendário', () => {
   const showHome = (onCategory = vi.fn()) => ({ onCategory, ...setup(<Home year={2026} month={10} colors={chartColors('light')} onPage={vi.fn()} onAdd={vi.fn()} onImport={vi.fn()} onCategory={onCategory} />) });
 
-  it('flags the category above its usual pace by now and opens it', async () => {
+  it('flags the category above its average month and opens it', async () => {
     const { user, onCategory } = showHome();
     const box = await screen.findByRole('region', { name: 'Fora do normal · Outubro' });
-    // Restaurante: 135 € by the 22nd vs a usual 60 €/month (≈ 42,58 € by now). Mercado is on pace.
+    // Restaurante: 135 € so far vs a usual 60 €/month. Mercado is within its normal.
     expect(within(box).getByText(/Restaurante/)).toBeInTheDocument();
     expect(within(box).queryByText(/Mercado/)).not.toBeInTheDocument();
-    expect(within(box).getByText(/Normal até hoje: ~42,58\s€ \(média de 60,00\s€\/mês\)/)).toBeInTheDocument();
+    expect(within(box).getByText(/Média dos últimos \d meses: 60,00\s€\/mês · 75,00\s€ a mais/)).toBeInTheDocument();
     await user.click(within(box).getByRole('button', { name: /Restaurante/ }));
     expect(onCategory).toHaveBeenCalledWith('Restaurante');
   });

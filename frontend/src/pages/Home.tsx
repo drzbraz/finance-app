@@ -59,7 +59,9 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport, onC
 
   const t = useMemo(() => totalsByType(txs), [txs]);
   const recurring = useMemo(() => mergeRecurring(txs, stored, month), [txs, stored, month]);
-  const forecast = forecastMonth(txs, recurring, year, month, today);
+  // The typical month looks at the last 3 months, across the year boundary in January.
+  const withLastYear = useMemo(() => [...lastYear, ...txs], [lastYear, txs]);
+  const forecast = forecastMonth(withLastYear, recurring, year, month, today);
   const free = freeToSpend(txs, recurring, budgets, year, month, today);
   const cards = insights({ txs, budgets, recurring, settings, year, month, today }).slice(0, 4);
   const rates = savingsRate(t);
@@ -75,9 +77,9 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport, onC
   const mainGoal = goals[0] ? goalStatus(goals[0], settings, t, today) : null;
   const cats = byCategory(txs, catScope === 'month' ? month : undefined).slice(0, 8);
   const top = topExpenses(txs, month);
-  const pace = monthPace(txs, year, month, today);
+  const pace = monthPace(withLastYear, year, month, today);
   const flow = moneyFlow(txs, month);
-  const unusual = useMemo(() => unusualCategories([...lastYear, ...txs], year, month, today), [lastYear, txs, year, month, today]);
+  const unusual = useMemo(() => unusualCategories(withLastYear, year, month), [withLastYear, year, month]);
   const pending = pendingReceivables(txs);
   // A past month's saldo also waits for what others still owe from it.
   const monthSaldo = bal[month - 1] - receivableTotal(txs, month);
@@ -142,7 +144,7 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport, onC
         <Kpi
           label="Gasto até agora"
           value={eur.format(forecast.spentSoFar)}
-          sub={forecast.isForecast ? `Previsão para o mês: ${eur.format(forecast.projectedSpend)}` : `Receita: ${eur.format(t.income[month - 1])}`}
+          sub={forecast.isForecast ? `Gastos previstos no mês: ${eur.format(forecast.projectedSpend)}` : `Receita: ${eur.format(t.income[month - 1])}`}
         />
         <Kpi
           label="Taxa de poupança"
@@ -163,7 +165,14 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport, onC
         </button>
       </div>
 
-      {free.isCurrent && showFree && <FreeBreakdown free={free} />}
+      {free.isCurrent && forecast.isForecast && free.free >= 0 && forecast.projectedSaldo < 0 && (
+        <p role="status" className="rounded-2xl border border-warn/30 bg-warn/5 px-4 py-3 text-sm">
+          <b>Atenção:</b> sobram {eur.format(free.free)} livres hoje, mas pela sua média de variáveis dos últimos meses
+          (~{eur.format(forecast.typicalDaily)}/dia) o mês fecha em <b className="text-bad">{eur.format(forecast.projectedSaldo)}</b>.{' '}
+          {!showFree && <button className="font-medium text-accent" onClick={() => setShowFree(true)}>Ver a conta →</button>}
+        </p>
+      )}
+      {free.isCurrent && showFree && <FreeBreakdown free={free} forecast={forecast} />}
 
       {pending.length > 0 && (
         <Section title="A receber · Splitwise" action={<button className="btn-ghost px-2 py-1 text-xs" onClick={() => onPage('bills')}>Ver em Contas</button>}>
@@ -230,7 +239,7 @@ export default function Home({ year, month, colors, onPage, onAdd, onImport, onC
         </Section>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         <Section title={`Fora do normal · ${MONTH_NAMES[month - 1]}`}>
           <Unusual rows={unusual} isCurrent={free.isCurrent} onCategory={onCategory} />
         </Section>
