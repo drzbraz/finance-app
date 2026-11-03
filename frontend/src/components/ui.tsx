@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 function useEscape(onClose: () => void) {
   useEffect(() => {
@@ -7,6 +8,12 @@ function useEscape(onClose: () => void) {
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
 }
+
+/**
+ * Overlays render on <body>: the page wrapper's entry animation leaves a transform behind,
+ * which would otherwise trap `position: fixed` inside the content column, under the top bar.
+ */
+const overlay = (node: ReactNode) => createPortal(node, document.body);
 
 /** Centered dialog (bottom sheet on phones). */
 export function Modal({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
@@ -17,7 +24,7 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
     const root = ref.current;
     (root?.querySelector<HTMLElement>('[data-autofocus]') ?? root?.querySelector<HTMLElement>('input, select, textarea') ?? root?.querySelector<HTMLElement>('button'))?.focus();
   }, []);
-  return (
+  return overlay(
     <div className="animate-fade fixed inset-0 z-40 flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-4" onMouseDown={onClose}>
       <div
         ref={ref}
@@ -33,14 +40,14 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
         </div>
         {children}
       </div>
-    </div>
+    </div>,
   );
 }
 
 /** Panel sliding from the right (full screen on phones). */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   useEscape(onClose);
-  return (
+  return overlay(
     <div className="animate-fade fixed inset-0 z-40 flex justify-end bg-black/40" onMouseDown={onClose}>
       <aside
         role="dialog"
@@ -55,7 +62,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         </div>
         {children}
       </aside>
-    </div>
+    </div>,
   );
 }
 
