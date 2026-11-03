@@ -287,6 +287,18 @@ describe('Contas', () => {
     });
   });
 
+  it('deletes a bill that only comes from the entries (never saved as a bill)', async () => {
+    await seed({ txs: [{ id: 's-psi', month: 9, description: 'Psicóloga', amount: 43, type: 'fixed', category: 'Saúde' }] });
+    expect(await db.recurring.get('fixed|Psicóloga')).toBeUndefined();
+    const { user } = show();
+    await user.click(await screen.findByRole('button', { name: 'Editar Psicóloga' }));
+    await user.click(screen.getByRole('button', { name: 'Excluir' }));
+    await user.click(screen.getByRole('button', { name: 'Remover conta' }));
+    await waitFor(async () => expect((await db.recurring.get('fixed|Psicóloga'))?.removed).toBe(true));
+    await waitFor(() => expect(screen.queryByText('Psicóloga')).not.toBeInTheDocument());
+    expect(await db.transactions.get('s-psi')).toBeDefined();
+  });
+
   describe('Limites de gasto', () => {
     beforeEach(() => seed({ txs: [{ id: 'fun', month: 10, description: 'cinema', amount: 50, category: 'Lazer' }] }));
 
