@@ -284,6 +284,19 @@ describe('forecast with history (one-offs are not multiplied)', () => {
     expect(f.projectedSpend).toBe(800); // 700 so far + 10 × 10, not 700 / 21 × 31
   });
 
+  it('uses only the last 3 months with variable spending, across the year boundary', () => {
+    const txs = [
+      tx({ month: 3, amount: 3100 }), // March: 100/day, older than the last 3 months
+      tx({ month: 7, amount: 310 }), // 10/day
+      tx({ month: 8, amount: 620 }), // 20/day
+      tx({ month: 9, amount: 900 }), // 30/day
+      tx({ month: 10, amount: 50 }),
+    ];
+    expect(forecastMonth(txs, [], 2026, 10, today).typicalDaily).toBe(20);
+    const january = [tx({ year: 2025, month: 11, amount: 300 }), tx({ year: 2025, month: 12, amount: 620 }), tx({ year: 2026, month: 1, amount: 10 })];
+    expect(forecastMonth(january, [], 2026, 1, new Date(2026, 0, 10)).typicalDaily).toBe(15);
+  });
+
   it('ignores earlier months with no variable spending, and falls back to pace without history', () => {
     const withGap = [tx({ month: 9, amount: 300 }), tx({ month: 8, type: 'fixed', amount: 50 }), tx({ month: 10, amount: 210 })];
     expect(forecastMonth(withGap, [], 2026, 10, today).typicalDaily).toBe(10);

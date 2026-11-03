@@ -18,6 +18,26 @@ const monthSelect = () => screen.getByRole('combobox', { name: 'Mês' });
 const yearSelect = () => screen.getByRole('combobox', { name: 'Ano' });
 
 describe('App shell', () => {
+  it('renders the bill sheet outside the animated page, so it covers the whole window', async () => {
+    const { user } = show();
+    await user.click(within(sidebar()).getByRole('button', { name: /Contas/ }));
+    await user.click((await screen.findAllByRole('button', { name: '+ Nova conta' }))[0]);
+    const sheet = screen.getByRole('dialog', { name: 'Nova conta' });
+    // A transformed ancestor would make `fixed inset-0` relative to the content column.
+    expect(sheet.closest('.animate-page')).toBeNull();
+    expect(sheet.closest('main')).toBeNull();
+  });
+
+  it('renders the transaction editor outside the animated page, so it stays in view when scrolled', async () => {
+    await seed({ txs: [{ month: 10, description: 'Youtube', amount: 9, type: 'fixed', category: 'Assinaturas' }] });
+    const { user } = show();
+    await user.click(within(sidebar()).getByRole('button', { name: /Transações/ }));
+    await user.click(await screen.findByText('Youtube'));
+    const sheet = screen.getByRole('dialog', { name: 'Editar lançamento' });
+    expect(sheet.closest('.animate-page')).toBeNull();
+    expect(sheet.closest('main')).toBeNull();
+  });
+
   it('opens on the current month and switches pages from the sidebar', async () => {
     await seed({ txs: [{ month: 10, description: 'cafe', amount: 3, category: 'Restaurante' }] });
     const { user } = show();

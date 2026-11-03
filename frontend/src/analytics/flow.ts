@@ -31,7 +31,7 @@ export function monthPace(txs: Transaction[], year: number, month: number, today
   const lastDay = isCurrent ? today.getDate() : dim;
   const perDay = new Array<number>(dim + 1).fill(0);
   for (const t of txs) {
-    if (t.month !== month || (t.type !== 'variable' && t.type !== 'additional')) continue;
+    if (t.year !== year || t.month !== month || (t.type !== 'variable' && t.type !== 'additional')) continue;
     const day = t.date ? Math.min(dim, Math.max(1, Number(t.date.slice(8, 10)) || 1)) : 1;
     perDay[day] += t.amount;
   }

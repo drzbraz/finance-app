@@ -135,10 +135,12 @@ export async function updateRecurring(previous: RecurringItem | null, next: Recu
   await invalidate(keys.recurring, TRANSACTIONS);
 }
 
-/** Removes a line from Contas; past transactions keep their history. */
+/**
+ * Removes a line from Contas; past transactions keep their history. Saved as a tombstone
+ * (not DELETE) because most lines are derived from the entries and were never stored.
+ */
 export async function removeRecurring(item: RecurringItem): Promise<void> {
-  await request('DELETE', `/recurring/${encode(item.key)}`);
-  await invalidate(keys.recurring);
+  await saveRecurring({ ...item, removed: true, active: false });
 }
 
 // ---- years and spreadsheets ----

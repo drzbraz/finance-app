@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { FreeToSpend } from '../../analytics/free';
+import type { MonthForecast } from '../../analytics/insights';
 import { eur } from '../../util';
 
 export function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'good' | 'bad' }) {
@@ -25,7 +26,7 @@ export function Section({ title, action, children, className = '' }: { title: st
 }
 
 /** "Como chegamos em …": the lines that add up to "Livre para gastar". */
-export function FreeBreakdown({ free }: { free: FreeToSpend }) {
+export function FreeBreakdown({ free, forecast }: { free: FreeToSpend; forecast?: MonthForecast }) {
   return (
     <section className="card animate-in text-sm">
       <h2 className="mb-2 font-semibold">Como chegamos em {eur.format(free.free)}</h2>
@@ -53,6 +54,13 @@ export function FreeBreakdown({ free }: { free: FreeToSpend }) {
         {free.groceryReserveSource !== 'budget' && ' Para reservar um valor fixo de mercado, defina um limite para Mercado em Contas → Limites de gasto.'}
         {free.toReceive > 0 && ' O que você adiantou no Splitwise volta para cá quando você marca “recebi”.'}
       </p>
+      {forecast?.isForecast && forecast.expectedFlexibleRest > 0 && (
+        <p className="mt-2 text-xs text-ink-2">
+          Este valor é o que sobra para os gastos variáveis dos próximos dias (fora o mercado); ele não desconta o que você ainda vai gastar.
+          Pela sua média dos últimos 3 meses (~{eur.format(forecast.typicalDaily)}/dia), eles devem somar ~{eur.format(forecast.expectedFlexibleRest)} até o fim do mês,
+          e o mês fecharia em <span className={forecast.projectedSaldo < 0 ? 'font-semibold text-bad' : 'font-semibold text-good'}>{eur.format(forecast.projectedSaldo)}</span>.
+        </p>
+      )}
     </section>
   );
 }
